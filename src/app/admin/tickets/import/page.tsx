@@ -114,10 +114,22 @@ export default function TicketImportPage() {
                 })
             });
 
-            const res = await response.json();
+            if (!response.ok) {
+                const errorText = await response.text();
+                let errorMsg = 'サーバーエラーが発生しました。';
+                try {
+                    const errorJson = JSON.parse(errorText);
+                    errorMsg = errorJson.error || errorMsg;
+                } catch (e) {
+                    errorMsg = errorText || errorMsg;
+                }
+                setResult({ success: false, message: `エラー: ${errorMsg}` });
+                return;
+            }
 
+            const res = await response.json();
             if (res.success) {
-                setResult({ success: true, message: `${targetData.length}名の参加者を登録しました。` });
+                setResult({ success: true, message: `${res.count || targetData.length}名の参加者を登録しました。` });
                 setMatchedData([]);
                 setSelectedRows(new Set());
                 setFile(null);
@@ -126,7 +138,7 @@ export default function TicketImportPage() {
             }
         } catch (error) {
             console.error(error);
-            setResult({ success: false, message: '登録中にエラーが発生しました。' });
+            setResult({ success: false, message: '登録中にエラーが発生しました。インターネット接続やセッションの有効期限を確認してください。' });
         } finally {
             setImporting(false);
         }
