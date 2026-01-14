@@ -24,6 +24,14 @@ export async function createClient() {
                     }
                 },
             },
+            global: {
+                headers: {
+                    'Prefer': 'return=representation'
+                }
+            },
+            db: {
+                schema: 'public'
+            }
         }
     )
 }
