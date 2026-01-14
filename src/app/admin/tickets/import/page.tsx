@@ -36,15 +36,16 @@ export default function TicketImportPage() {
             try {
                 const data = await parseCSV(f);
                 if (data.length > 0) {
-                    // Auto-detect columns
+                    // Auto-detect columns (prioritizing ID, Name, Price)
                     const headers = Object.keys(data[0]);
-                    let idCol = '', nameCol = '', priceCol = '';
+                    let idCol = headers[0], nameCol = headers[1], priceCol = headers[2];
 
+                    // Refine if headers match loose keywords even if order is slightly different
                     headers.forEach(h => {
                         const lowH = h.toLowerCase();
                         if (lowH.includes('id') || lowH.includes('番号') || lowH.includes('コード')) idCol = h;
                         if (lowH.includes('name') || lowH.includes('名前') || lowH.includes('氏名')) nameCol = h;
-                        if (lowH.includes('price') || lowH.includes('金額') || lowH.includes('product') || lowH.includes('商品')) priceCol = h;
+                        if (lowH.includes('price') || lowH.includes('金額') || lowH.includes('値段') || lowH.includes('product') || lowH.includes('商品')) priceCol = h;
                     });
 
                     if (!nameCol || !priceCol) {
@@ -180,8 +181,7 @@ export default function TicketImportPage() {
                     <h2 className="font-bold">CSVアップロード</h2>
                 </div>
                 <p className="text-sm text-foreground/60 mb-4">
-                    必須列: 氏名、値段（または商品名）<br />
-                    オプション: ID（社員番号）
+                    推奨形式: **ID、氏名、値段** の3列（ヘッダーあり）
                 </p>
                 <input
                     type="file"
