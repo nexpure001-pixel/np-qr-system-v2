@@ -101,9 +101,18 @@ export default function StaffScanPage() {
   }, [tick]);
 
   useEffect(() => {
-    startCamera();
+    let isMounted = true;
+
+    const init = async () => {
+      if (isMounted) {
+        await startCamera();
+      }
+    };
+    init();
+
     const currentVideo = videoRef.current;
     return () => {
+      isMounted = false;
       // Cleanup stream
       if (currentVideo?.srcObject) {
         const stream = currentVideo.srcObject as MediaStream;

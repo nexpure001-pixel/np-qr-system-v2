@@ -18,7 +18,7 @@ interface MasterData {
     id: string;
     employee_id: string;
     name: string;
-    email: string;
+    email: string | null;
 }
 
 interface MatchedRow {

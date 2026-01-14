@@ -5,15 +5,7 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
-  // Relax rules for legacy 'any' usage and complex effects to unblock build
-  {
-    rules: {
-      "@typescript-eslint/no-explicit-any": "off",
-      "react-hooks/set-state-in-effect": "off",
-      "@typescript-eslint/no-unused-vars": "off",
-      "react-hooks/exhaustive-deps": "off",
-    }
-  },
+
   globalIgnores([
     ".next/**",
     "out/**",

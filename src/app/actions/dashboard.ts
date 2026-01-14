@@ -52,7 +52,12 @@ export async function getEventStats(eventId: string) {
         .eq('id', eventId)
         .single();
 
-    if (!event || (event.tenants as any)?.owner_id !== user.id) {
+    if (!event) return null;
+
+    const tenantInfo = event.tenants as unknown as { owner_id: string } | { owner_id: string }[];
+    const ownerId = Array.isArray(tenantInfo) ? tenantInfo[0]?.owner_id : tenantInfo?.owner_id;
+
+    if (ownerId !== user.id) {
         return null;
     }
 
@@ -122,7 +127,12 @@ export async function getEventParticipants(eventId: string) {
         .eq('id', eventId)
         .single();
 
-    if (!event || (event.tenants as any)?.owner_id !== user.id) {
+    if (!event) return [];
+
+    const tenantInfo = event.tenants as unknown as { owner_id: string } | { owner_id: string }[];
+    const ownerId = Array.isArray(tenantInfo) ? tenantInfo[0]?.owner_id : tenantInfo?.owner_id;
+
+    if (ownerId !== user.id) {
         return [];
     }
 

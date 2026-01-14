@@ -96,9 +96,10 @@ export async function createTenantAccount(formData: FormData) {
             }
         };
 
-    } catch (err: any) {
-        console.error('Unexpected error:', err);
-        return { success: false, error: 'システムエラーが発生しました: ' + err.message };
+    } catch (err) {
+        const error = err as Error;
+        console.error('Unexpected error:', error);
+        return { success: false, error: 'システムエラーが発生しました: ' + error.message };
     }
 }
 
@@ -209,8 +210,9 @@ export async function deleteTenant(tenantId: string) {
 
         return { success: true };
 
-    } catch (err: any) {
-        console.error('Unexpected error:', err);
-        return { success: false, error: 'システムエラーが発生しました: ' + err.message };
+    } catch (err) {
+        const error = err as Error;
+        console.error('Unexpected error:', error);
+        return { success: false, error: 'システムエラーが発生しました: ' + error.message };
     }
 }

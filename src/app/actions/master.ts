@@ -2,6 +2,15 @@
 
 import { createClient } from "@/utils/supabase/server";
 
+interface MasterDataRecord {
+    id: string;
+    tenant_id: string;
+    employee_id: string;
+    name: string;
+    email: string | null;
+    created_at: string;
+}
+
 // Fetch all participants for the company (Authenticated User)
 export async function getMasterData() {
     const supabase = await createClient();
@@ -27,7 +36,7 @@ export async function getMasterData() {
 
     // Fetch all data in batches to bypass 1000 row limit
     const batchSize = 1000;
-    let allData: any[] = [];
+    let allData: MasterDataRecord[] = [];
     let offset = 0;
     let hasMore = true;
 

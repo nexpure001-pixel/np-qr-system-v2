@@ -7,12 +7,17 @@ import { useEffect, useState } from "react";
 import { getTenantInfo } from "@/app/actions/dashboard";
 import { isSuperAdmin } from "@/app/actions/super-admin";
 
+interface TenantInfo {
+    name: string;
+    company_code: string;
+}
+
 export default function AdminLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
-    const [tenantInfo, setTenantInfo] = useState<any>(null);
+    const [tenantInfo, setTenantInfo] = useState<TenantInfo | null>(null);
     const [isSuper, setIsSuper] = useState(false);
 
     useEffect(() => {

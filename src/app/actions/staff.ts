@@ -125,7 +125,8 @@ export async function checkIn(token: string) {
   }
 
   // Get Name (Guest or Master Data)
-  const participantName = participation.name || (participation.master_data as any)?.name || '未登録';
+  const masterData = participation.master_data as unknown as { name: string } | null;
+  const participantName = participation.name || (Array.isArray(masterData) ? masterData[0]?.name : masterData?.name) || '未登録';
 
   // 3. Check if Already Checked In
   if (participation.status === 'checked_in') {

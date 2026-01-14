@@ -7,8 +7,20 @@ import { User, Building2, Key, Mail, Shield } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getAccountInfo, updatePassword } from "@/app/actions/account";
 
+interface AccountInfo {
+    userId: string;
+    email?: string;
+    createdAt: string;
+    lastSignIn?: string;
+    tenant?: {
+        name: string;
+        company_code: string;
+        created_at: string;
+    } | null;
+}
+
 export default function AccountPage() {
-    const [accountInfo, setAccountInfo] = useState<any>(null);
+    const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
     const [loading, setLoading] = useState(true);
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');

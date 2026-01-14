@@ -7,9 +7,17 @@ import { Save, ShieldCheck, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getSMTPSettings, updateSMTPSettings } from "@/app/actions/settings";
 
+interface SMTPSettings {
+    smtp_host: string;
+    smtp_port: number;
+    smtp_user: string;
+    smtp_password?: string;
+    smtp_from_email: string;
+}
+
 export default function SmtpSettingsPage() {
     const [isLoading, setIsLoading] = useState(false);
-    const [settings, setSettings] = useState<any>(null);
+    const [settings, setSettings] = useState<SMTPSettings | null>(null);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
     // Load existing settings
@@ -105,8 +113,8 @@ export default function SmtpSettingsPage() {
 
                     {message && (
                         <div className={`p-4 rounded-lg text-sm ${message.type === 'success'
-                                ? 'bg-green-50 text-green-700 border border-green-200'
-                                : 'bg-red-50 text-red-700 border border-red-200'
+                            ? 'bg-green-50 text-green-700 border border-green-200'
+                            : 'bg-red-50 text-red-700 border border-red-200'
                             }`}>
                             {message.text}
                         </div>

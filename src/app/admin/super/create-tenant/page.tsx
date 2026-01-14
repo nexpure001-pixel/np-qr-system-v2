@@ -8,9 +8,15 @@ import { Loader2, ArrowLeft, Key } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+interface Credentials {
+    email: string;
+    password?: string;
+    companyCode: string;
+}
+
 export default function CreateTenantPage() {
     const [loading, setLoading] = useState(false);
-    const [result, setResult] = useState<any>(null);
+    const [result, setResult] = useState<Credentials | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     // Auto generate code on mount or button click
@@ -27,7 +33,7 @@ export default function CreateTenantPage() {
 
         const res = await createTenantAccount(formData);
 
-        if (res.success) {
+        if (res.success && res.credentials) {
             setResult(res.credentials);
         } else {
             setError(res.error || 'Unknown error');

@@ -199,8 +199,23 @@ export async function deleteEvent(eventId: string) {
     return { success: true };
 }
 
+interface TicketRule {
+    id: string;
+    name: string;
+    keywords: string[];
+    startTime: string;
+}
+
+interface EventUpdateData {
+    name?: string;
+    event_code?: string;
+    staff_passcode?: string;
+    is_public_application?: boolean;
+    ticket_config?: TicketRule[]; // ticket_config is a JSON array
+}
+
 // Update event details (including ticket settings)
-export async function updateEvent(eventId: string, data: any) {
+export async function updateEvent(eventId: string, data: EventUpdateData) {
     const supabase = await createClient();
 
     // 1. Get User
@@ -228,7 +243,14 @@ export async function updateEvent(eventId: string, data: any) {
 
     // 4. Update Event
     // Filter allowed fields to prevent arbitrary updates if passed directly
-    const updates: any = {
+    const updates: {
+        name?: string;
+        event_code?: string;
+        staff_passcode?: string;
+        is_public_application?: boolean;
+        ticket_config?: TicketRule[];
+        updated_at: string;
+    } = {
         updated_at: new Date().toISOString()
     };
     if (data.name !== undefined) updates.name = data.name;

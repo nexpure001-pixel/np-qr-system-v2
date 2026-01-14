@@ -7,23 +7,40 @@ import { createEvent, getEvents, deleteEvent, updateEvent } from "@/app/actions/
 import { useEffect, useState } from "react";
 import { Plus, List, Loader2, Copy, Check, Trash2, AlertTriangle, Settings, X, Save } from "lucide-react";
 
+interface TicketRule {
+    id: string;
+    name: string;
+    keywords: string[];
+    startTime: string;
+}
+
+interface EventRecord {
+    id: string;
+    name: string;
+    event_code: string;
+    staff_passcode: string;
+    is_public_application: boolean;
+    ticket_config: TicketRule[];
+    created_at: string;
+}
+
 export default function EventSettingsPage() {
-    const [events, setEvents] = useState<any[]>([]);
+    const [events, setEvents] = useState<EventRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
-    const [createdEvent, setCreatedEvent] = useState<any>(null); // To show URL after creation
+    const [createdEvent, setCreatedEvent] = useState<EventRecord | null>(null); // To show URL after creation
     const [error, setError] = useState<string | null>(null);
-    const [deleteModal, setDeleteModal] = useState<{ show: boolean, event: any | null }>({ show: false, event: null });
+    const [deleteModal, setDeleteModal] = useState<{ show: boolean, event: EventRecord | null }>({ show: false, event: null });
     const [deleting, setDeleting] = useState(false);
 
     // Edit Modal State
-    const [editModal, setEditModal] = useState<{ show: boolean, event: any | null }>({ show: false, event: null });
-    const [editingTicketRules, setEditingTicketRules] = useState<any[]>([]);
+    const [editModal, setEditModal] = useState<{ show: boolean, event: EventRecord | null }>({ show: false, event: null });
+    const [editingTicketRules, setEditingTicketRules] = useState<TicketRule[]>([]);
     const [saving, setSaving] = useState(false);
 
     // Create Form State
     const [createIsPublic, setCreateIsPublic] = useState(true);
-    const [newTicketRules, setNewTicketRules] = useState<any[]>([]);
+    const [newTicketRules, setNewTicketRules] = useState<TicketRule[]>([]);
 
     const fetchEvents = () => {
         getEvents().then(data => {
@@ -56,7 +73,7 @@ export default function EventSettingsPage() {
         setSubmitting(false);
     };
 
-    const handleEditClick = (event: any) => {
+    const handleEditClick = (event: EventRecord) => {
         setEditingTicketRules(event.ticket_config || []);
         setEditModal({ show: true, event: { ...event } });
     };
@@ -95,18 +112,18 @@ export default function EventSettingsPage() {
         setEditingTicketRules(newRules);
     };
 
-    const handleRuleChange = (index: number, field: string, value: any) => {
+    const handleRuleChange = (index: number, field: keyof TicketRule, value: string) => {
         const newRules = [...editingTicketRules];
         if (field === 'keywords') {
             // Split by comma and trim
             newRules[index][field] = value.split(',').map((k: string) => k.trim()).filter((k: string) => k);
-        } else {
+        } else if (field === 'name' || field === 'startTime') {
             newRules[index][field] = value;
         }
         setEditingTicketRules(newRules);
     };
 
-    const handleDeleteClick = (event: any) => {
+    const handleDeleteClick = (event: EventRecord) => {
         setDeleteModal({ show: true, event });
     };
 
@@ -476,200 +493,6 @@ export default function EventSettingsPage() {
                                                     <Copy className="w-3 h-3" />
                                                 </Button>
                                                 {/* Edit Modal */}
-                                                {editModal.show && editModal.event && (
-                                                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-                                                        <div className="bg-white rounded-xl max-w-2xl w-full shadow-2xl my-8">
-                                                            <div className="flex items-center justify-between p-6 border-b border-border">
-                                                                <h2 className="text-xl font-bold flex items-center gap-2">
-                                                                    <Settings className="w-5 h-5 text-foreground/60" />
-                                                                    イベント設定変更
-                                                                </h2>
-                                                                <button
-                                                                    onClick={() => setEditModal({ show: false, event: null })}
-                                                                    className="text-foreground/40 hover:text-foreground/80"
-                                                                >
-                                                                    <X className="w-6 h-6" />
-                                                                </button>
-                                                            </div>
-
-                                                            <div className="p-6 space-y-8 max-h-[80vh] overflow-y-auto">
-                                                                {/* Basic Info */}
-                                                                <section className="space-y-4">
-                                                                    <h3 className="font-bold border-b pb-2">基本情報</h3>
-                                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                                        <Input
-                                                                            label="イベント名"
-                                                                            value={editModal.event.name}
-                                                                            onChange={(e) => setEditModal({ ...editModal, event: { ...editModal.event, name: e.target.value } })}
-                                                                        />
-                                                                        <Input
-                                                                            label="イベントコード"
-                                                                            value={editModal.event.event_code}
-                                                                            onChange={(e) => setEditModal({ ...editModal, event: { ...editModal.event, event_code: e.target.value } })}
-                                                                        />
-                                                                        <Input
-                                                                            label="スタッフパスコード"
-                                                                            value={editModal.event.staff_passcode}
-                                                                            onChange={(e) => setEditModal({ ...editModal, event: { ...editModal.event, staff_passcode: e.target.value } })}
-                                                                        />
-                                                                    </div>
-
-                                                                    <div className="flex items-center gap-2 p-3 bg-muted/20 rounded-lg border border-border/50">
-                                                                        <input
-                                                                            type="checkbox"
-                                                                            id="edit_is_public"
-                                                                            checked={editModal.event.is_public_application}
-                                                                            onChange={(e) => setEditModal({ ...editModal, event: { ...editModal.event, is_public_application: e.target.checked } })}
-                                                                            className="w-5 h-5 text-primary rounded border-gray-300 focus:ring-primary"
-                                                                        />
-                                                                        <label htmlFor="edit_is_public" className="cursor-pointer select-none">
-                                                                            <span className="block font-bold">公開申し込みページを有効にする</span>
-                                                                        </label>
-                                                                    </div>
-                                                                </section>
-
-                                                                {/* Ticket Rules */}
-                                                                <section className="space-y-4">
-                                                                    <div className="flex items-center justify-between border-b pb-2">
-                                                                        <h3 className="font-bold">チケット変換ルール (CSVインポート用)</h3>
-                                                                        <Button size="sm" variant="secondary" onClick={handleAddRule} className="text-xs">
-                                                                            <Plus className="w-3 h-3 mr-1" />
-                                                                            ルール追加
-                                                                        </Button>
-                                                                    </div>
-                                                                    <p className="text-sm text-foreground/60">
-                                                                        CSVの「金額」や「商品名」を、システム上の「券種」や「入場時間」に紐付けます。<br />
-                                                                        キーワードはカンマ(,)区切りで複数設定できます。
-                                                                    </p>
-
-                                                                    {editingTicketRules.length === 0 ? (
-                                                                        <div className="text-center py-6 bg-muted/10 rounded-lg border border-dashed border-foreground/20 text-foreground/40 text-sm">
-                                                                            ルールが設定されていません。
-                                                                        </div>
-                                                                    ) : (
-                                                                        <div className="space-y-4">
-                                                                            {editingTicketRules.map((rule, idx) => (
-                                                                                <div key={rule.id} className="p-4 bg-muted/10 rounded-lg border border-border relative group">
-                                                                                    <button
-                                                                                        onClick={() => handleRemoveRule(idx)}
-                                                                                        className="absolute top-2 right-2 text-foreground/30 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                                    >
-                                                                                        <X className="w-4 h-4" />
-                                                                                    </button>
-
-                                                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                                                                                        <div>
-                                                                                            <label className="text-xs font-bold text-foreground/60 block mb-1">券種名 (Ticket Type)</label>
-                                                                                            <input
-                                                                                                value={rule.name}
-                                                                                                onChange={(e) => handleRuleChange(idx, 'name', e.target.value)}
-                                                                                                className="w-full text-sm p-2 rounded border border-border"
-                                                                                                placeholder="例: PriorityPass"
-                                                                                            />
-                                                                                        </div>
-                                                                                        <div>
-                                                                                            <label className="text-xs font-bold text-foreground/60 block mb-1">入場可能時間 (Start Time)</label>
-                                                                                            <input
-                                                                                                value={rule.startTime}
-                                                                                                onChange={(e) => handleRuleChange(idx, 'startTime', e.target.value)}
-                                                                                                className="w-full text-sm p-2 rounded border border-border"
-                                                                                                placeholder="例: 18:30-19:00"
-                                                                                            />
-                                                                                        </div>
-                                                                                    </div>
-                                                                                    <div>
-                                                                                        <label className="text-xs font-bold text-foreground/60 block mb-1">
-                                                                                            紐付けキーワード
-                                                                                        </label>
-                                                                                        <div className="space-y-2">
-                                                                                            {/* Display existing keywords as tags */}
-                                                                                            <div className="flex flex-wrap gap-2">
-                                                                                                {rule.keywords.map((keyword: string, kidx: number) => (
-                                                                                                    <span key={kidx} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
-                                                                                                        {keyword}
-                                                                                                        <button
-                                                                                                            type="button"
-                                                                                                            onClick={() => {
-                                                                                                                const n = [...editingTicketRules];
-                                                                                                                n[idx].keywords.splice(kidx, 1);
-                                                                                                                setEditingTicketRules(n);
-                                                                                                            }}
-                                                                                                            className="hover:text-red-600"
-                                                                                                        >
-                                                                                                            <X className="w-3 h-3" />
-                                                                                                        </button>
-                                                                                                    </span>
-                                                                                                ))}
-                                                                                            </div>
-                                                                                            {/* Add keyword input */}
-                                                                                            <div className="flex gap-2">
-                                                                                                <input
-                                                                                                    type="text"
-                                                                                                    id={`edit-keyword-input-${idx}`}
-                                                                                                    className="flex-1 text-sm p-2 rounded border border-border bg-white"
-                                                                                                    placeholder="例: 8800 または 8,800"
-                                                                                                    onKeyDown={(e) => {
-                                                                                                        if (e.key === 'Enter') {
-                                                                                                            e.preventDefault();
-                                                                                                            const input = e.currentTarget;
-                                                                                                            const value = input.value.trim();
-                                                                                                            if (value) {
-                                                                                                                const n = [...editingTicketRules];
-                                                                                                                n[idx].keywords.push(value);
-                                                                                                                setEditingTicketRules(n);
-                                                                                                                input.value = '';
-                                                                                                            }
-                                                                                                        }
-                                                                                                    }}
-                                                                                                />
-                                                                                                <Button
-                                                                                                    type="button"
-                                                                                                    size="sm"
-                                                                                                    variant="secondary"
-                                                                                                    onClick={() => {
-                                                                                                        const input = document.getElementById(`edit-keyword-input-${idx}`) as HTMLInputElement;
-                                                                                                        const value = input?.value.trim();
-                                                                                                        if (value) {
-                                                                                                            const n = [...editingTicketRules];
-                                                                                                            n[idx].keywords.push(value);
-                                                                                                            setEditingTicketRules(n);
-                                                                                                            input.value = '';
-                                                                                                        }
-                                                                                                    }}
-                                                                                                >
-                                                                                                    <Plus className="w-3 h-3" />
-                                                                                                </Button>
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    </div>
-                                                                                </div>
-                                                                            ))}
-                                                                        </div>
-                                                                    )}
-                                                                </section>
-                                                            </div>
-
-                                                            <div className="p-6 border-t border-border bg-muted/10 flex justify-end gap-3 rounded-b-xl">
-                                                                <Button
-                                                                    variant="secondary"
-                                                                    onClick={() => setEditModal({ show: false, event: null })}
-                                                                    disabled={saving}
-                                                                >
-                                                                    キャンセル
-                                                                </Button>
-                                                                <Button
-                                                                    onClick={handleUpdate}
-                                                                    disabled={saving}
-                                                                    className="min-w-[120px]"
-                                                                >
-                                                                    {saving ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                                                                    保存する
-                                                                </Button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )}
-
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-center">
@@ -778,17 +601,17 @@ export default function EventSettingsPage() {
                                     <Input
                                         label="イベント名"
                                         value={editModal.event.name}
-                                        onChange={(e) => setEditModal({ ...editModal, event: { ...editModal.event, name: e.target.value } })}
+                                        onChange={(e) => setEditModal({ ...editModal, event: { ...editModal.event!, name: e.target.value } })}
                                     />
                                     <Input
                                         label="イベントコード"
                                         value={editModal.event.event_code}
-                                        onChange={(e) => setEditModal({ ...editModal, event: { ...editModal.event, event_code: e.target.value } })}
+                                        onChange={(e) => setEditModal({ ...editModal, event: { ...editModal.event!, event_code: e.target.value } })}
                                     />
                                     <Input
                                         label="スタッフパスコード"
                                         value={editModal.event.staff_passcode}
-                                        onChange={(e) => setEditModal({ ...editModal, event: { ...editModal.event, staff_passcode: e.target.value } })}
+                                        onChange={(e) => setEditModal({ ...editModal, event: { ...editModal.event!, staff_passcode: e.target.value } })}
                                     />
                                 </div>
 
@@ -797,7 +620,7 @@ export default function EventSettingsPage() {
                                         type="checkbox"
                                         id="edit_is_public"
                                         checked={editModal.event.is_public_application}
-                                        onChange={(e) => setEditModal({ ...editModal, event: { ...editModal.event, is_public_application: e.target.checked } })}
+                                        onChange={(e) => setEditModal({ ...editModal, event: { ...editModal.event!, is_public_application: e.target.checked } })}
                                         className="w-5 h-5 text-primary rounded border-gray-300 focus:ring-primary"
                                     />
                                     <label htmlFor="edit_is_public" className="cursor-pointer select-none">

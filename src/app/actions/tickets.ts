@@ -2,7 +2,17 @@
 
 import { createClient } from "@/utils/supabase/server";
 
-export async function importTickets(eventId: string, tickets: any[]) {
+interface TicketImportRow {
+    name: string;
+    email: string;
+    order_id?: string;
+    ticket_type?: string;
+    start_time?: string;
+    product_name?: string;
+    master_data_id?: string;
+}
+
+export async function importTickets(eventId: string, tickets: TicketImportRow[]) {
     const supabase = await createClient();
 
     // 1. Get User & Tenant

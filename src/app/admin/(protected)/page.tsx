@@ -9,11 +9,26 @@ import { getEvents, getEventStats } from "@/app/actions/dashboard";
 import { isSuperAdmin } from "@/app/actions/super-admin";
 import { useRouter } from "next/navigation";
 
+interface EventRecord {
+    id: string;
+    name: string;
+    event_code: string;
+    created_at: string;
+}
+
+interface EventStats {
+    eventName: string;
+    eventCode: string;
+    total: number;
+    checkedIn: number;
+    pending: number;
+}
+
 export default function AdminDashboard() {
     const router = useRouter();
-    const [events, setEvents] = useState<any[]>([]);
+    const [events, setEvents] = useState<EventRecord[]>([]);
     const [selectedEventId, setSelectedEventId] = useState<string>('');
-    const [stats, setStats] = useState<any>(null);
+    const [stats, setStats] = useState<EventStats | null>(null);
     const [loading, setLoading] = useState(true);
 
     // Check if super admin and redirect
@@ -183,8 +198,19 @@ function StatsCard({
 }
 
 
+interface ParticipantRecord {
+    id: string;
+    name: string;
+    email: string;
+    ticket_type: string;
+    status: string;
+    email_sent: boolean;
+    created_at: string;
+    master_data_id?: string;
+}
+
 function ParticipantList({ eventId }: { eventId: string }) {
-    const [participants, setParticipants] = useState<any[]>([]);
+    const [participants, setParticipants] = useState<ParticipantRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
 

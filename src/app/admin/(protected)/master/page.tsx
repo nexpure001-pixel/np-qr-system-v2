@@ -8,8 +8,16 @@ import { parseCSV } from "@/utils/csvParser";
 import { useEffect, useState, useRef } from "react";
 import { Loader2, Plus, Trash2, Upload, AlertCircle, User } from 'lucide-react';
 
+interface MasterRecord {
+    id: string;
+    employee_id: string;
+    name: string;
+    email: string | null;
+    created_at: string;
+}
+
 export default function MasterDataPage() {
-    const [data, setData] = useState<any[]>([]);
+    const [data, setData] = useState<MasterRecord[]>([]);
     const [loading, setLoading] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
 
@@ -115,8 +123,9 @@ export default function MasterDataPage() {
             } else {
                 alert(result.error);
             }
-        } catch (err: any) {
-            alert('CSV読み込みエラー: ' + err.message);
+        } catch (err) {
+            const error = err as Error;
+            alert('CSV読み込みエラー: ' + error.message);
         } finally {
             setIsImporting(false);
             if (fileInputRef.current) fileInputRef.current.value = '';

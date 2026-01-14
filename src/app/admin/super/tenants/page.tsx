@@ -27,8 +27,17 @@ export default function TenantsPage() {
     }, []);
 
     useEffect(() => {
-        loadTenants();
-    }, [loadTenants]);
+        let isMounted = true;
+        const init = async () => {
+            const data = await getAllTenants();
+            if (isMounted) {
+                setTenants(data as Tenant[]);
+                setLoading(false);
+            }
+        };
+        init();
+        return () => { isMounted = false; };
+    }, []);
 
     const handleDelete = async (id: string, name: string) => {
         if (!confirm(`本当にテナント「${name}」を削除しますか？\nこの操作は取り消せません。\n紐づく全てのイベント、名簿、参加者が削除されます。`)) {
