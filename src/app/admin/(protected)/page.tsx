@@ -145,6 +145,9 @@ export default function AdminDashboard() {
                             </div>
                         </Card>
                     )}
+
+                    {/* Participant List */}
+                    <ParticipantList eventId={selectedEventId} />
                 </>
             )}
         </div>

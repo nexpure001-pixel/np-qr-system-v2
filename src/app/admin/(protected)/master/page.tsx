@@ -88,6 +88,10 @@ export default function MasterDataPage() {
                 const h = k.toLowerCase();
                 return h.includes('name') || h.includes('氏名') || h.includes('名前');
             });
+            const emailKey = Object.keys(parsedData[0]).find(k => {
+                const h = k.toLowerCase();
+                return h.includes('email') || h.includes('mail') || h.includes('メール');
+            });
 
             if (!idKey || !nameKey) {
                 alert('CSVに「ID」と「氏名」の列が必要です。');
@@ -96,7 +100,8 @@ export default function MasterDataPage() {
 
             const formattedData = parsedData.map(row => ({
                 employee_id: row[idKey],
-                name: row[nameKey]
+                name: row[nameKey],
+                email: emailKey ? row[emailKey] : undefined
             })).filter(r => r.employee_id && r.name);
 
             const result = await importMasterDataCSV(formattedData);
@@ -154,6 +159,7 @@ export default function MasterDataPage() {
                     <form id="add-form" action={handleAdd} className="space-y-4">
                         <Input name="employee_id" label="社員ID (必須)" placeholder="EMP001" required />
                         <Input name="name" label="氏名 (必須)" placeholder="山田 太郎" required />
+                        <Input name="email" label="メールアドレス" type="email" placeholder="yamada@example.com" />
                         <Button type="submit" className="w-full">
                             {loading ? <Loader2 className="animate-spin w-4 h-4" /> : "追加する"}
                         </Button>
@@ -182,20 +188,22 @@ export default function MasterDataPage() {
                                 <tr>
                                     <th className="px-6 py-3">ID</th>
                                     <th className="px-6 py-3">氏名</th>
+                                    <th className="px-6 py-3">メール</th>
                                     <th className="px-6 py-3 text-right">登録日</th>
                                     <th className="px-6 py-3 text-center">操作</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
                                 {loading && data.length === 0 ? (
-                                    <tr><td colSpan={4} className="p-8 text-center">読み込み中...</td></tr>
+                                    <tr><td colSpan={5} className="p-8 text-center">読み込み中...</td></tr>
                                 ) : data.length === 0 ? (
-                                    <tr><td colSpan={4} className="p-8 text-center text-foreground/50">データがありません。</td></tr>
+                                    <tr><td colSpan={5} className="p-8 text-center text-foreground/50">データがありません。</td></tr>
                                 ) : (
                                     data.map((item) => (
                                         <tr key={item.id} className="bg-white hover:bg-muted/10">
                                             <td className="px-6 py-4 font-mono font-medium">{item.employee_id}</td>
                                             <td className="px-6 py-4">{item.name}</td>
+                                            <td className="px-6 py-4 text-sm text-foreground/60">{item.email || '-'}</td>
                                             <td className="px-6 py-4 text-right text-xs text-foreground/50">
                                                 {new Date(item.created_at).toLocaleDateString()}
                                             </td>

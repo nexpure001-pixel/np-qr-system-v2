@@ -55,6 +55,7 @@ export async function addMasterDataRecord(formData: FormData) {
 
     const employeeId = formData.get('employee_id') as string;
     const name = formData.get('name') as string;
+    const email = formData.get('email') as string;
 
     if (!employeeId || !name) {
         return { success: false, error: 'IDと名前は必須です。' };
@@ -64,7 +65,8 @@ export async function addMasterDataRecord(formData: FormData) {
     const { error } = await supabase.from('master_data').upsert({
         tenant_id: tenant.id,
         employee_id: employeeId,
-        name: name
+        name: name,
+        email: email || null
     }, { onConflict: 'tenant_id, employee_id' });
 
     if (error) {
@@ -76,7 +78,7 @@ export async function addMasterDataRecord(formData: FormData) {
 }
 
 // Bulk Import to company master
-export async function importMasterDataCSV(rows: { employee_id: string, name: string }[]) {
+export async function importMasterDataCSV(rows: { employee_id: string, name: string, email?: string }[]) {
     const supabase = await createClient();
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -96,7 +98,8 @@ export async function importMasterDataCSV(rows: { employee_id: string, name: str
     const payload = rows.map(r => ({
         tenant_id: tenant.id,
         employee_id: r.employee_id,
-        name: r.name
+        name: r.name,
+        email: r.email || null
     }));
 
     // Get existing employee IDs to filter out duplicates

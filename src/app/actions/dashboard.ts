@@ -100,3 +100,51 @@ export async function getTenantInfo() {
 
     return tenant;
 }
+
+// Get participants for a specific event with master data match info
+export async function getEventParticipants(eventId: string) {
+    const supabase = await createClient();
+
+    // 1. Get User
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    // 2. Verify event belongs to user's tenant
+    const { data: event } = await supabase
+        .from('events')
+        .select(`
+            id,
+            tenant_id,
+            tenants!inner (
+                owner_id
+            )
+        `)
+        .eq('id', eventId)
+        .single();
+
+    if (!event || (event.tenants as any)?.owner_id !== user.id) {
+        return [];
+    }
+
+    // 3. Get participations with master data join
+    const { data: participations } = await supabase
+        .from('participations')
+        .select(`
+            id,
+            name,
+            email,
+            ticket_type,
+            status,
+            created_at,
+            master_data_id,
+            master_data (
+                employee_id,
+                name,
+                email
+            )
+        `)
+        .eq('event_id', eventId)
+        .order('created_at', { ascending: false });
+
+    return participations || [];
+}
