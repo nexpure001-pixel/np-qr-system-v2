@@ -27,6 +27,7 @@ interface MatchedRow {
     employeeId: string;
     price: string;
     email: string;
+    quantity: number;
     master_data_id: string | null;
     status: 'member' | 'guest';
 }
@@ -69,6 +70,13 @@ export default function TicketImportPage() {
                         if (lowH.includes('id') || lowH.includes('番号') || lowH.includes('コード')) idCol = h;
                         if (lowH.includes('name') || lowH.includes('名前') || lowH.includes('氏名')) nameCol = h;
                         if (lowH.includes('price') || lowH.includes('金額') || lowH.includes('値段') || lowH.includes('product') || lowH.includes('商品')) priceCol = h;
+                        if (lowH.includes('枚数') || lowH.includes('個数') || lowH.includes('数量') || lowH.includes('qty') || lowH.includes('quantity') || lowH.includes('count')) quantityCol = h;
+                    });
+
+                    let quantityCol: string | null = null;
+                    headers.forEach(h => {
+                        const lowH = h.toLowerCase();
+                        if (lowH.includes('枚数') || lowH.includes('個数') || lowH.includes('数量') || lowH.includes('qty') || lowH.includes('quantity') || lowH.includes('count')) quantityCol = h;
                     });
 
                     if (!nameCol || !priceCol) {
@@ -94,6 +102,7 @@ export default function TicketImportPage() {
                             employeeId,
                             price,
                             email: masterMatch?.email || '',
+                            quantity: quantityCol ? (parseInt(row[quantityCol]) || 1) : 1,
                             master_data_id: masterMatch?.id || null,
                             status: (masterMatch ? 'member' : 'guest') as 'member' | 'guest'
                         };
@@ -126,6 +135,18 @@ export default function TicketImportPage() {
         setImporting(true);
         const targetData = matchedData.filter((_, i) => selectedRows.has(i));
 
+        // Flatten data based on quantity
+        const expandedParticipants: any[] = [];
+        targetData.forEach(p => {
+            const count = Math.max(1, p.quantity);
+            for (let i = 0; i < count; i++) {
+                expandedParticipants.push({
+                    ...p,
+                    _copy_index: i // To distinguish if needed
+                });
+            }
+        });
+
         try {
             // Import to registerParticipants (no email sending)
             const response = await fetch('/api/register-participants', {
@@ -133,7 +154,7 @@ export default function TicketImportPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     eventId: selectedEventId,
-                    participants: targetData
+                    participants: expandedParticipants
                 })
             });
 
@@ -152,7 +173,7 @@ export default function TicketImportPage() {
 
             const res = await response.json();
             if (res.success) {
-                setResult({ success: true, message: `${res.count || targetData.length}名の参加者を登録しました。` });
+                setResult({ success: true, message: `${res.count || expandedParticipants.length}名の参加者を登録しました。` });
                 setMatchedData([]);
                 setSelectedRows(new Set());
                 setFile(null);
@@ -254,6 +275,7 @@ export default function TicketImportPage() {
                                     <th className="px-4 py-3 text-left">氏名</th>
                                     <th className="px-4 py-3 text-left">メールアドレス</th>
                                     <th className="px-4 py-3 text-left">値段</th>
+                                    <th className="px-4 py-3 text-left">枚数</th>
                                     <th className="px-4 py-3 text-left">区分</th>
                                 </tr>
                             </thead>
@@ -271,6 +293,7 @@ export default function TicketImportPage() {
                                         <td className="px-4 py-3 font-bold">{row.name}</td>
                                         <td className="px-4 py-3 text-foreground/70">{row.email || '-'}</td>
                                         <td className="px-4 py-3">{row.price}</td>
+                                        <td className="px-4 py-3 font-bold">{row.quantity}枚</td>
                                         <td className="px-4 py-3">
                                             {row.status === 'member' ? (
                                                 <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded text-xs font-bold">
