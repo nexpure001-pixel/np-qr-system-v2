@@ -60,8 +60,8 @@ export async function POST(request: NextRequest) {
                 ticket_type: ticketType,
                 master_data_id: p.master_data_id || null,
                 status: 'pending',
-                invited_by: user.id,
-                email_sent: false // Not sent yet
+                inviter: user.id, // Corrected from invited_by
+                email_sent: false // Requires migration_v7 to be applied
             };
         });
 
@@ -71,8 +71,16 @@ export async function POST(request: NextRequest) {
             .insert(participationsToInsert);
 
         if (insertError) {
-            console.error('Insert Error:', insertError);
-            return NextResponse.json({ success: false, error: '登録に失敗しました。' }, { status: 500 });
+            console.error('Insert Error Detail:', {
+                message: insertError.message,
+                details: insertError.details,
+                hint: insertError.hint,
+                code: insertError.code
+            });
+            return NextResponse.json({
+                success: false,
+                error: `登録に失敗しました: ${insertError.message}`
+            }, { status: 500 });
         }
 
         return NextResponse.json({ success: true, count: participants.length });
