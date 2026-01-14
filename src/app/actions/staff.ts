@@ -108,9 +108,8 @@ export async function checkIn(token: string) {
     actualToken = token.split('/checkin/').pop() || token;
   }
 
-  // 2. Find Participation by Token or ID
-  // We check globally first to provide a better error message if event_id doesn't match
-  const { data: participation, error: findError } = await supabase
+  // 2. Find Participation by Token, ID, or Member ID
+  let { data: participation, error: findError } = await supabase
     .from('participations')
     .select(`
       id,
@@ -125,15 +124,47 @@ export async function checkIn(token: string) {
         name
       ),
       master_data (
-        name
+        name,
+        employee_id
       )
     `)
     .or(`checkin_token.eq.${actualToken},id.eq.${actualToken}`)
     .single();
 
+  // If not found by token/ID, try searching by Member ID (employee_id) within the current event
+  if (findError || !participation) {
+    const { data: memberPart, error: memberError } = await supabase
+      .from('participations')
+      .select(`
+        id,
+        status,
+        checked_in_at,
+        ticket_type,
+        start_time,
+        re_entry_history,
+        name,
+        event_id,
+        events (
+          name
+        ),
+        master_data!inner (
+          name,
+          employee_id
+        )
+      `)
+      .eq('event_id', session.eventId)
+      .eq('master_data.employee_id', actualToken)
+      .single();
+
+    if (!memberError && memberPart) {
+      participation = memberPart;
+      findError = null;
+    }
+  }
+
   if (findError || !participation) {
     console.warn(`Check-in: Token not found [${actualToken}]`);
-    return { success: false, error: '無効なQRコードです。システムに登録がありません。', errorCode: 'INVALID_TOKEN' };
+    return { success: false, error: '該当する参加者が見つかりません。', errorCode: 'NOT_FOUND' };
   }
 
   // Check Event Mismatch

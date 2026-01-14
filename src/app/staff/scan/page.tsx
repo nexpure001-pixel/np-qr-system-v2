@@ -4,13 +4,16 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import jsQR from 'jsqr';
 import { checkIn, staffLogout, getStaffSession } from '@/app/actions/staff';
 import { Button } from '@/components/ui/Button';
-import { LogOut, CheckCircle, AlertTriangle, XCircle, Camera } from 'lucide-react';
+import { Camera, LogOut, CheckCircle, Clock, AlertTriangle, User, Search, Loader2, XCircle } from "lucide-react";
 
 export default function StaffScanPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [session, setSession] = useState<{ eventName: string, tenantName: string } | null>(null);
+  const [lastScanTime, setLastScanTime] = useState<number>(0);
   const [scanning, setScanning] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
   const [result, setResult] = useState<{
     type: 'success' | 'warning' | 'error',
     message: string,
@@ -210,6 +213,40 @@ export default function StaffScanPage() {
           </p>
           <p className="text-slate-400 text-xs font-bold tracking-wider">
             枠内にQRコードが入るように調整してください
+          </p>
+        </div>
+
+        {/* Manual Search UI */}
+        <div className="mt-8 w-full max-w-[320px]">
+          <div className="relative group">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="会員IDを手動入力..."
+              className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl text-sm font-bold focus:outline-none focus:border-blue-500 transition-all placeholder:text-slate-300 pr-12 shadow-sm"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchQuery) {
+                  handleScan(searchQuery);
+                  setSearchQuery("");
+                }
+              }}
+            />
+            <button
+              onClick={() => {
+                if (searchQuery) {
+                  handleScan(searchQuery);
+                  setSearchQuery("");
+                }
+              }}
+              disabled={!searchQuery}
+              className="absolute right-2 top-2 p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:bg-slate-200 transition-all shadow-md shadow-blue-200"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+          </div>
+          <p className="text-[10px] text-slate-300 font-bold text-center mt-3 uppercase tracking-tighter">
+            会員IDによる手動チェックインが可能です
           </p>
         </div>
       </div>
