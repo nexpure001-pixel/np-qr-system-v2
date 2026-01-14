@@ -45,15 +45,48 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: false, error: '送信対象の参加者がいません。' }, { status: 400 });
         }
 
+        // Get tenant ID
+        const { data: tenant } = await supabase
+            .from('tenants')
+            .select('id')
+            .eq('owner_id', user.id)
+            .single();
+
+        if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 403 });
+
         // Queue email jobs
-        const emailJobs = participants.map(p => ({
-            event_id: eventId,
-            participation_id: p.id,
-            recipient_email: p.email,
-            recipient_name: p.name,
-            status: 'pending',
-            created_at: new Date().toISOString()
-        }));
+        const emailJobs = participants.map(p => {
+            const qrUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/checkin/${p.id}`;
+            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`;
+
+            const body = `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+                    <h2 style="color: #333;">${event.name} 入場チケット</h2>
+                    <p>${p.name} 様</p>
+                    <p>この度はご登録いただきありがとうございます。当日はこちらのQRコードを受付へご提示ください。</p>
+                    
+                    <div style="text-align: center; margin: 30px 0; padding: 20px; background: #f9f9f9; border-radius: 10px;">
+                        <img src="${qrImageUrl}" alt="QR Code" style="width: 200px; height: 200px;" />
+                        <p style="font-size: 12px; color: #666; margin-top: 10px;">※QRコードが表示されない場合は、以下のリンクからご確認ください。</p>
+                        <a href="${qrUrl}" style="color: #2563eb; font-size: 14px;">チケットを表示する</a>
+                    </div>
+                    
+                    <div style="border-t: 1px solid #eee; padding-top: 20px; font-size: 14px; color: #555;">
+                        <p><strong>券種:</strong> ${p.ticket_type}</p>
+                        <p><strong>開催日:</strong> ${event.event_date || '当日'}</p>
+                    </div>
+                </div>
+            `;
+
+            return {
+                tenant_id: tenant.id,
+                to_email: p.email,
+                subject: `【${event.name}】入場チケットのご案内`,
+                body: body,
+                status: 'pending',
+                created_at: new Date().toISOString()
+            };
+        });
 
         const { error: insertError } = await supabase
             .from('mail_jobs')
