@@ -128,27 +128,33 @@ export async function checkIn(token: string) {
   const masterData = participation.master_data as unknown as { name: string } | null;
   const participantName = participation.name || (Array.isArray(masterData) ? masterData[0]?.name : masterData?.name) || '未登録';
 
-  // 3. Check if Already Checked In
-  if (participation.status === 'checked_in') {
-    return {
-      success: false,
-      error: '既にチェックイン済みです。',
-      errorCode: 'ALREADY_CHECKED_IN',
-      participant: {
-        name: participantName,
-        ticketType: participation.ticket_type,
-        startTime: participation.start_time
-      }
-    };
+  // 3. Handle Entry Type
+  const isFirstEntry = !participation.checked_in_at;
+  const entryType = isFirstEntry ? 'first' : 're_entry';
+
+  // 4. Update Status and History
+  const now = new Date().toISOString();
+  const updates: {
+    status: string;
+    updated_at: string;
+    checked_in_at?: string;
+    re_entry_history?: string[];
+  } = {
+    status: 'checked_in',
+    updated_at: now
+  };
+
+  if (isFirstEntry) {
+    updates.checked_in_at = now;
+  } else {
+    // Append to re-entry history
+    const history = Array.isArray(participation.re_entry_history) ? participation.re_entry_history : [];
+    updates.re_entry_history = [...history, now];
   }
 
-  // 4. Update Status to Checked In
   const { error: updateError } = await supabase
     .from('participations')
-    .update({
-      status: 'checked_in',
-      checked_in_at: new Date().toISOString()
-    })
+    .update(updates)
     .eq('id', participation.id);
 
   if (updateError) {
@@ -158,11 +164,12 @@ export async function checkIn(token: string) {
 
   return {
     success: true,
-    message: 'チェックイン完了',
+    message: isFirstEntry ? 'チェックイン完了' : '途中入場（再入場）',
     participant: {
       name: participantName,
       ticketType: participation.ticket_type,
-      startTime: participation.start_time
+      startTime: participation.start_time,
+      entryType: entryType as 'first' | 're_entry'
     }
   };
 }

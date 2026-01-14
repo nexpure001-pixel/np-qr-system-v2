@@ -11,7 +11,14 @@ export default function StaffScanPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [session, setSession] = useState<{ eventName: string, tenantName: string } | null>(null);
   const [scanning, setScanning] = useState(true);
-  const [result, setResult] = useState<{ type: 'success' | 'warning' | 'error', message: string, name?: string, ticketType?: string, startTime?: string } | null>(null);
+  const [result, setResult] = useState<{
+    type: 'success' | 'warning' | 'error',
+    message: string,
+    name?: string,
+    ticketType?: string,
+    startTime?: string,
+    entryType?: 'first' | 're_entry'
+  } | null>(null);
 
   // Initialize Session
   useEffect(() => {
@@ -29,25 +36,20 @@ export default function StaffScanPage() {
     // Call Server Action
     const res = await checkIn(data);
 
-    if (res.success) {
+    if (res.success && res.participant) {
       setResult({
         type: 'success',
         message: res.message || 'チェックイン完了',
-        name: res.participant?.name
+        name: res.participant.name,
+        ticketType: res.participant.ticketType,
+        startTime: res.participant.startTime,
+        entryType: res.participant.entryType
       });
     } else {
-      if (res.errorCode === 'ALREADY_CHECKED_IN') {
-        setResult({
-          type: 'warning',
-          message: res.error || '既にチェックイン済みです',
-          name: res.participant?.name
-        });
-      } else {
-        setResult({
-          type: 'error',
-          message: res.error || 'エラーが発生しました'
-        });
-      }
+      setResult({
+        type: 'error',
+        message: res.error || 'エラーが発生しました'
+      });
     }
   }, [scanning]);
 
@@ -191,6 +193,17 @@ export default function StaffScanPage() {
 
             {/* Content */}
             <div className="p-6 text-center">
+              {result.entryType && (
+                <div className="mb-4">
+                  <span className={`px-4 py-1.5 rounded-full text-sm font-black tracking-widest ${result.entryType === 'first'
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                    : 'bg-orange-500 text-white shadow-lg shadow-orange-200'
+                    }`}>
+                    {result.entryType === 'first' ? '✨ 初入場' : '🔄 途中入場'}
+                  </span>
+                </div>
+              )}
+
               {result.name && (
                 <div className="mb-4">
                   <p className="text-xs text-gray-400 uppercase tracking-widest font-bold">GUEST</p>

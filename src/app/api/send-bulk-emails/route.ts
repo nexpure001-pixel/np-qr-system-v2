@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
         // Get unsent participants
         const { data: participants, error: fetchError } = await supabase
             .from('participations')
-            .select('id, name, email, ticket_type')
+            .select('id, name, email, ticket_type, checkin_token')
             .eq('event_id', eventId)
             .eq('email_sent', false)
             .not('email', 'is', null); // Only those with email addresses
@@ -67,8 +67,7 @@ export async function POST(request: NextRequest) {
 
         // Queue email jobs
         const emailJobs = participants.map(p => {
-            const qrUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/checkin/${p.id}`;
-            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`;
+            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(p.checkin_token)}`;
 
             const body = `
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
@@ -78,8 +77,7 @@ export async function POST(request: NextRequest) {
                     
                     <div style="text-align: center; margin: 30px 0; padding: 20px; background: #f9f9f9; border-radius: 10px;">
                         <img src="${qrImageUrl}" alt="QR Code" style="width: 200px; height: 200px;" />
-                        <p style="font-size: 12px; color: #666; margin-top: 10px;">※QRコードが表示されない場合は、以下のリンクからご確認ください。</p>
-                        <a href="${qrUrl}" style="color: #2563eb; font-size: 14px;">チケットを表示する</a>
+                        <p style="font-size: 12px; color: #666; margin-top: 10px;">※こちらのQRコードを受付へご提示ください。</p>
                     </div>
                     
                     <div style="border-t: 1px solid #eee; padding-top: 20px; font-size: 14px; color: #555;">
