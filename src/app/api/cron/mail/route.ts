@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
             )
         `)
         .eq('status', 'pending')
-        .limit(10);
+        .limit(30);
 
     if (error) {
         console.error('Mail Processor: Fetch Error', error);
