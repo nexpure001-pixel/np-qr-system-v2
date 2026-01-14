@@ -21,66 +21,8 @@ export default function StaffScanPage() {
     });
   }, []);
 
-  // Camera Logic
-  const startCamera = useCallback(async () => {
-    if (!videoRef.current) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" }
-      });
-      videoRef.current.srcObject = stream;
-      videoRef.current.setAttribute("playsinline", "true"); // required to tell iOS safari we don't want fullscreen
-      videoRef.current.play();
-      requestAnimationFrame(tick);
-    } catch (err) {
-      console.error("Camera Error:", err);
-      setResult({ type: 'error', message: 'カメラの起動に失敗しました。権限を確認してください。' });
-    }
-  }, []);
-
-  useEffect(() => {
-    startCamera();
-    return () => {
-      // Cleanup stream
-      if (videoRef.current?.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [startCamera]);
-
-  // Scan Loop
-  const tick = () => {
-    if (!videoRef.current || !canvasRef.current) return;
-    if (videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-
-      canvas.height = video.videoHeight;
-      canvas.width = video.videoWidth;
-
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-        const code = jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: "dontInvert",
-        });
-
-        if (code && code.data) {
-          handleScan(code.data);
-          return; // Stop ticking while handling
-        }
-      }
-    }
-    if (scanning) {
-      requestAnimationFrame(tick);
-    }
-  };
-
   // Handle Scan Result
-  const handleScan = async (data: string) => {
+  const handleScan = useCallback(async (data: string) => {
     if (!scanning) return;
     setScanning(false); // Pause scanning
 
@@ -107,7 +49,67 @@ export default function StaffScanPage() {
         });
       }
     }
-  };
+  }, [scanning]);
+
+  // Scan Loop
+  const tick = useCallback(() => {
+    const loop = () => {
+      if (!videoRef.current || !canvasRef.current || !scanning) return;
+      if (videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+
+        canvas.height = video.videoHeight;
+        canvas.width = video.videoWidth;
+
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "dontInvert",
+          });
+
+          if (code && code.data) {
+            handleScan(code.data);
+            return; // Stop loop
+          }
+        }
+      }
+      requestAnimationFrame(loop);
+    };
+    loop();
+  }, [scanning, handleScan]);
+
+  // Camera Logic
+  const startCamera = useCallback(async () => {
+    if (!videoRef.current) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }
+      });
+      videoRef.current.srcObject = stream;
+      videoRef.current.setAttribute("playsinline", "true"); // required to tell iOS safari we don't want fullscreen
+      videoRef.current.play();
+      tick();
+    } catch (err) {
+      console.error("Camera Error:", err);
+      setResult({ type: 'error', message: 'カメラの起動に失敗しました。権限を確認してください。' });
+    }
+  }, [tick]);
+
+  useEffect(() => {
+    startCamera();
+    const currentVideo = videoRef.current;
+    return () => {
+      // Cleanup stream
+      if (currentVideo?.srcObject) {
+        const stream = currentVideo.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [startCamera]);
 
   // Reset to Scan Mode
   const resetScan = () => {

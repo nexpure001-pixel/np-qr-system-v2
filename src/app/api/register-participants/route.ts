@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
         // Determine ticket type based on price/keyword matching
         const ticketRules = event.ticket_config || [];
 
-        const participationsToInsert = participants.map((p: any) => {
+        const participationsToInsert = participants.map((p: { name: string; email?: string; employeeId?: string; price?: string; master_data_id?: string }) => {
             let ticketType = 'Standard';
             const priceStr = String(p.price || '');
             for (const rule of ticketRules) {
@@ -90,7 +90,8 @@ export async function POST(request: NextRequest) {
         }
 
         return NextResponse.json({ success: true, count: participants.length });
-    } catch (error: any) {
+    } catch (err) {
+        const error = err as Error;
         console.error('API Error:', error);
         return NextResponse.json({
             success: false,

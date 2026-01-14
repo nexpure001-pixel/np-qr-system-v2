@@ -43,7 +43,14 @@ export async function GET(request: Request) {
 
     for (const job of jobs) {
         try {
-            const tenant = job.tenants as any;
+            const tenant = job.tenants as unknown as {
+                name: string;
+                smtp_host: string;
+                smtp_port: number;
+                smtp_user: string;
+                smtp_password: string;
+                smtp_from_email: string;
+            };
 
             if (!tenant || !tenant.smtp_host || !tenant.smtp_user || !tenant.smtp_password) {
                 throw new Error('テナントのSMTP設定が不完全です。設定画面を確認してください。');
@@ -79,20 +86,21 @@ export async function GET(request: Request) {
 
             results.push({ id: job.id, status: 'sent' });
 
-        } catch (err: any) {
-            console.error(`Job ${job.id} failed:`, err);
+        } catch (err) {
+            const error = err as Error;
+            console.error(`Job ${job.id} failed:`, error);
 
             // Update Status -> Failed
             await supabase
                 .from('mail_jobs')
                 .update({
                     status: 'failed',
-                    error_message: err.message,
+                    error_message: error.message,
                     processed_at: new Date().toISOString()
                 })
                 .eq('id', job.id);
 
-            results.push({ id: job.id, status: 'failed', error: err.message });
+            results.push({ id: job.id, status: 'failed', error: error.message });
         }
     }
 

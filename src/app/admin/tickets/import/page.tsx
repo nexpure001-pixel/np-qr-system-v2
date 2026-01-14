@@ -6,16 +6,39 @@ import { Button } from "@/components/ui/Button";
 import { getEvents } from "@/app/actions/settings";
 import { getMasterData } from "@/app/actions/master";
 import { parseCSV } from "@/utils/csvParser";
-import { Loader2, Upload, FileSpreadsheet, CheckCircle, AlertCircle, UserCheck, Users } from 'lucide-react';
+import { Loader2, FileSpreadsheet, CheckCircle, AlertCircle, UserCheck, Users } from 'lucide-react';
+
+interface Event {
+    id: string;
+    name: string;
+    event_code: string;
+}
+
+interface MasterData {
+    id: string;
+    employee_id: string;
+    name: string;
+    email: string;
+}
+
+interface MatchedRow {
+    _id: number;
+    name: string;
+    employeeId: string;
+    price: string;
+    email: string;
+    master_data_id: string | null;
+    status: 'member' | 'guest';
+}
 
 export default function TicketImportPage() {
-    const [events, setEvents] = useState<any[]>([]);
-    const [masterData, setMasterData] = useState<any[]>([]);
+    const [events, setEvents] = useState<Event[]>([]);
+    const [masterData, setMasterData] = useState<MasterData[]>([]);
     const [selectedEventId, setSelectedEventId] = useState<string>('');
-    const [file, setFile] = useState<File | null>(null);
+    const [, setFile] = useState<File | null>(null);
 
     // Matched data after CSV upload
-    const [matchedData, setMatchedData] = useState<any[]>([]);
+    const [matchedData, setMatchedData] = useState<MatchedRow[]>([]);
     const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
 
     const [importing, setImporting] = useState(false);
@@ -72,7 +95,7 @@ export default function TicketImportPage() {
                             price,
                             email: masterMatch?.email || '',
                             master_data_id: masterMatch?.id || null,
-                            status: masterMatch ? 'member' : 'guest'
+                            status: (masterMatch ? 'member' : 'guest') as 'member' | 'guest'
                         };
                     });
 
@@ -136,7 +159,8 @@ export default function TicketImportPage() {
             } else {
                 setResult({ success: false, message: res.error || '登録に失敗しました。' });
             }
-        } catch (error) {
+        } catch (err) {
+            const error = err as Error;
             console.error(error);
             setResult({ success: false, message: '登録中にエラーが発生しました。インターネット接続やセッションの有効期限を確認してください。' });
         } finally {

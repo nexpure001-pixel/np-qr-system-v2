@@ -5,24 +5,32 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Loader2, Trash2, Building2, User } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+
+interface Tenant {
+    id: string;
+    name: string;
+    company_code: string;
+    email: string;
+    created_at: string;
+}
 
 export default function TenantsPage() {
-    const [tenants, setTenants] = useState<any[]>([]);
+    const [tenants, setTenants] = useState<Tenant[]>([]);
     const [loading, setLoading] = useState(true);
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
-    const loadTenants = () => {
+    const loadTenants = useCallback(() => {
         setLoading(true);
         getAllTenants().then(data => {
-            setTenants(data);
+            setTenants(data as Tenant[]);
             setLoading(false);
         });
-    };
+    }, []);
 
     useEffect(() => {
         loadTenants();
-    }, []);
+    }, [loadTenants]);
 
     const handleDelete = async (id: string, name: string) => {
         if (!confirm(`本当にテナント「${name}」を削除しますか？\nこの操作は取り消せません。\n紐づく全てのイベント、名簿、参加者が削除されます。`)) {
