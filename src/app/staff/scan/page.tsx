@@ -4,16 +4,14 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import jsQR from 'jsqr';
 import { checkIn, staffLogout, getStaffSession } from '@/app/actions/staff';
 import { Button } from '@/components/ui/Button';
-import { Camera, LogOut, CheckCircle, Clock, AlertTriangle, User, Search, Loader2, XCircle } from "lucide-react";
+import { Camera, LogOut, CheckCircle, AlertTriangle, Search, XCircle } from "lucide-react";
 
 export default function StaffScanPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [session, setSession] = useState<{ eventName: string, tenantName: string } | null>(null);
-  const [lastScanTime, setLastScanTime] = useState<number>(0);
   const [scanning, setScanning] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
   const [result, setResult] = useState<{
     type: 'success' | 'warning' | 'error',
     message: string,
@@ -282,23 +280,22 @@ export default function StaffScanPage() {
 
               {result.name && (
                 <div className="mb-4">
-                  <p className="text-xs text-gray-400 uppercase tracking-widest font-bold">GUEST</p>
-                  <p className="text-3xl font-bold text-gray-800 font-serif mt-1">{result.name} 様</p>
+                  <p className="text-3xl font-black text-slate-800 mt-1">{result.name} 様</p>
                 </div>
               )}
 
               {(result.ticketType || result.startTime) && (
-                <div className="bg-gray-100 rounded-lg p-3 mb-4 text-left space-y-2">
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-6 text-center space-y-2">
                   {result.ticketType && (
-                    <div className="flex justify-between">
-                      <span className="text-xs font-bold text-gray-500">券種</span>
-                      <span className="font-bold text-gray-800">{result.ticketType}</span>
+                    <div className="flex flex-col items-center">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">券種</span>
+                      <span className="text-lg font-black text-slate-900 leading-tight">{result.ticketType}</span>
                     </div>
                   )}
                   {result.startTime && (
-                    <div className="flex justify-between">
-                      <span className="text-xs font-bold text-gray-500">入場可能時間</span>
-                      <span className="font-bold text-gray-800">{result.startTime}</span>
+                    <div className="flex flex-col items-center pt-2 border-t border-slate-100">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">入場可能時間</span>
+                      <span className="text-lg font-black text-slate-900 leading-tight">{result.startTime}</span>
                     </div>
                   )}
                 </div>

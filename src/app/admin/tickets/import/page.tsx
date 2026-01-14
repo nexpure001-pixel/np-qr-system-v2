@@ -131,7 +131,7 @@ export default function TicketImportPage() {
         const targetData = matchedData.filter((_, i) => selectedRows.has(i));
 
         // Flatten data based on quantity
-        const expandedParticipants: any[] = [];
+        const expandedParticipants: (MatchedRow & { _copy_index?: number })[] = [];
         targetData.forEach(p => {
             const count = Math.max(1, p.quantity);
             for (let i = 0; i < count; i++) {
