@@ -13,6 +13,7 @@ interface SMTPSettings {
     smtp_user: string;
     smtp_password?: string;
     smtp_from_email: string;
+    smtp_from_name: string;
 }
 
 export default function SmtpSettingsPage() {
@@ -102,14 +103,23 @@ export default function SmtpSettingsPage() {
 
                     <hr className="border-border" />
 
-                    <Input
-                        label="送信元アドレス (From)"
-                        placeholder="noreply@example.com"
-                        name="smtp_from_email"
-                        type="email"
-                        defaultValue={settings?.smtp_from_email || ''}
-                        required
-                    />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Input
+                            label="送信者名 (表示名)"
+                            placeholder="イベント事務局"
+                            name="smtp_from_name"
+                            defaultValue={settings?.smtp_from_name || ''}
+                            required
+                        />
+                        <Input
+                            label="送信元アドレス (From)"
+                            placeholder="noreply@example.com"
+                            name="smtp_from_email"
+                            type="email"
+                            defaultValue={settings?.smtp_from_email || ''}
+                            required
+                        />
+                    </div>
 
                     {message && (
                         <div className={`p-4 rounded-lg text-sm ${message.type === 'success'

@@ -93,6 +93,7 @@ export async function POST(request: NextRequest) {
 
             return {
                 tenant_id: tenant_id,
+                participation_id: p.id,
                 to_email: p.email,
                 subject: `【${event.name}】入場チケットのご案内`,
                 body: body,

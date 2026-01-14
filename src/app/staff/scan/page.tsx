@@ -134,48 +134,87 @@ export default function StaffScanPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col relative overflow-hidden">
-      {/* Camera View */}
-      <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover opacity-80" />
-      <canvas ref={canvasRef} className="hidden" />
+    <div className="min-h-screen bg-white text-slate-900 flex flex-col relative overflow-hidden font-sans">
+      {/* Background Camera View (Lowered opacity) */}
+      <div className="absolute inset-0 z-0 bg-slate-100/50">
+        <video
+          ref={videoRef}
+          className="absolute inset-0 w-full h-full object-cover opacity-30 blur-[2px]"
+        />
+        <canvas ref={canvasRef} className="hidden" />
+      </div>
 
-      {/* Overlay: Header */}
-      <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent z-10 flex justify-between items-start">
-        <div>
-          <h1 className="text-lg font-bold flex items-center gap-2">
-            <Camera className="w-5 h-5 text-green-400" />
-            QRスキャン中
-          </h1>
-          {session && (
-            <p className="text-xs text-gray-300 mt-1">
-              {session.tenantName} / {session.eventName}
-            </p>
-          )}
+      {/* Modern Overlay: Header */}
+      <div className="relative z-20 p-6 flex justify-between items-center border-b border-slate-100 bg-white/80 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-50 rounded-lg">
+            <Camera className="w-5 h-5 text-blue-600" />
+          </div>
+          <div>
+            <h1 className="text-lg font-black tracking-tight text-slate-800">
+              QRスキャン中
+            </h1>
+            {session && (
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                {session.eventName}
+              </p>
+            )}
+          </div>
         </div>
         <form action={staffLogout}>
-          <button type="submit" className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors">
+          <button type="submit" className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-100 hover:text-slate-600 transition-all border border-slate-100">
             <LogOut className="w-5 h-5" />
           </button>
         </form>
       </div>
 
-      {/* Overlay: Target Box */}
-      {scanning && !result && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-          <div className="w-64 h-64 border-2 border-green-400/50 rounded-lg relative">
-            <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-green-500 -mt-1 -ml-1"></div>
-            <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-green-500 -mt-1 -mr-1"></div>
-            <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-green-500 -mb-1 -ml-1"></div>
-            <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-green-500 -mb-1 -mr-1"></div>
-            <div className="absolute inset-0 bg-green-500/10 animate-pulse"></div>
+      {/* Main Scanner Container */}
+      <div className="flex-1 relative z-10 flex flex-col items-center justify-center p-6 bg-gradient-to-b from-white/20 via-transparent to-white/20">
+
+        {/* The "Window" container */}
+        <div className="relative w-full max-w-[320px] aspect-square flex items-center justify-center">
+
+          {/* Real clear camera view in the window */}
+          <div className="absolute inset-0 rounded-[2.5rem] overflow-hidden border-8 border-white shadow-2xl ring-1 ring-slate-100">
+            <video
+              ref={(v) => {
+                if (v && videoRef.current && v !== videoRef.current) {
+                  // We show the same stream in the small window
+                  v.srcObject = videoRef.current.srcObject;
+                  v.play();
+                }
+              }}
+              className="w-full h-full object-cover scale-110"
+              muted
+              playsInline
+            />
           </div>
-          <p className="absolute mt-80 text-sm font-bold text-green-400 animate-bounce">
-            QRコードを枠内にかざしてください
+
+          {/* Guidelines Corner Brackets */}
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute top-0 left-0 w-12 h-12 border-t-4 border-l-4 border-blue-600 rounded-tl-3xl -mt-1 -ml-1"></div>
+            <div className="absolute top-0 right-0 w-12 h-12 border-t-4 border-r-4 border-blue-600 rounded-tr-3xl -mt-1 -mr-1"></div>
+            <div className="absolute bottom-0 left-0 w-12 h-12 border-b-4 border-l-4 border-blue-600 rounded-bl-3xl -mb-1 -ml-1"></div>
+            <div className="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-blue-600 rounded-br-3xl -mb-1 -mr-1"></div>
+          </div>
+
+          {/* Scanning Animation Line */}
+          {scanning && !result && (
+            <div className="absolute top-0 left-4 right-4 h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent shadow-[0_0_15px_rgba(59,130,246,0.8)] animate-scan-line z-30 opacity-80" />
+          )}
+        </div>
+
+        <div className="mt-10 text-center space-y-2">
+          <p className="text-slate-800 font-black text-lg">
+            {scanning ? "QRコードをかざしてください" : "処理中..."}
+          </p>
+          <p className="text-slate-400 text-xs font-bold tracking-wider">
+            枠内にQRコードが入るように調整してください
           </p>
         </div>
-      )}
+      </div>
 
-      {/* Result Modal */}
+      {/* Result Modal - Integrated for modern look */}
       {result && (
         <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className={`w-full max-w-sm bg-white rounded-xl shadow-2xl overflow-hidden animate-in zoom-in duration-200 ${result.type === 'success' ? 'border-4 border-green-500' : result.type === 'warning' ? 'border-4 border-yellow-500' : 'border-4 border-red-500'}`}>

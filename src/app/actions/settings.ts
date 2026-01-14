@@ -96,7 +96,7 @@ export async function getSMTPSettings() {
     // 2. Get Tenant with SMTP settings
     const { data: tenant } = await supabase
         .from('tenants')
-        .select('smtp_host, smtp_port, smtp_user, smtp_password, smtp_from_email')
+        .select('smtp_host, smtp_port, smtp_user, smtp_password, smtp_from_email, smtp_from_name')
         .eq('owner_id', user.id)
         .single();
 
@@ -126,8 +126,9 @@ export async function updateSMTPSettings(formData: FormData) {
     const smtpUser = formData.get('smtp_user') as string;
     const smtpPassword = formData.get('smtp_password') as string;
     const smtpFromEmail = formData.get('smtp_from_email') as string;
+    const smtpFromName = formData.get('smtp_from_name') as string;
 
-    if (!smtpHost || !smtpPort || !smtpUser || !smtpPassword || !smtpFromEmail) {
+    if (!smtpHost || !smtpPort || !smtpUser || !smtpPassword || !smtpFromEmail || !smtpFromName) {
         return { success: false, error: '全ての項目を入力してください。' };
     }
 
@@ -140,6 +141,7 @@ export async function updateSMTPSettings(formData: FormData) {
             smtp_user: smtpUser,
             smtp_password: smtpPassword,
             smtp_from_email: smtpFromEmail,
+            smtp_from_name: smtpFromName,
             updated_at: new Date().toISOString()
         })
         .eq('id', tenant.id);

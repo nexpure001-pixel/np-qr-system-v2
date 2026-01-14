@@ -26,7 +26,8 @@ export async function GET(request: NextRequest) {
                 smtp_port,
                 smtp_user,
                 smtp_password,
-                smtp_from_email
+                smtp_from_email,
+                smtp_from_name
             )
         `)
         .eq('status', 'pending')
@@ -52,6 +53,7 @@ export async function GET(request: NextRequest) {
                 smtp_user: string;
                 smtp_password: string;
                 smtp_from_email: string;
+                smtp_from_name: string;
             };
 
             if (!tenant || !tenant.smtp_host || !tenant.smtp_user || !tenant.smtp_password) {
@@ -70,8 +72,9 @@ export async function GET(request: NextRequest) {
             });
 
             // 4. Send Mail (HTML format for QR code support)
+            const fromName = tenant.smtp_from_name || tenant.name;
             await transporter.sendMail({
-                from: `"${tenant.name}" <${tenant.smtp_from_email}>`,
+                from: `"${fromName}" <${tenant.smtp_from_email}>`,
                 to: job.to_email,
                 subject: job.subject,
                 html: job.body, // Changed from 'text' to 'html'
