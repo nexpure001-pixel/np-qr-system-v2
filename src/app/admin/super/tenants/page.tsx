@@ -20,12 +20,10 @@ export default function TenantsPage() {
     const [loading, setLoading] = useState(true);
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
-    const loadTenants = useCallback(() => {
-        setLoading(true);
-        getAllTenants().then(data => {
-            setTenants(data as Tenant[]);
-            setLoading(false);
-        });
+    const loadTenants = useCallback(async () => {
+        const data = await getAllTenants();
+        setTenants(data as Tenant[]);
+        setLoading(false);
     }, []);
 
     useEffect(() => {

@@ -51,8 +51,10 @@ export default function StaffScanPage() {
     }
   }, [scanning]);
 
-  // Scan Loop
+  // Use a local function for the loop to avoid const scoping issues in requestAnimationFrame
   const tick = useCallback(() => {
+    if (!videoRef.current || !canvasRef.current || !scanning) return;
+
     const loop = () => {
       if (!videoRef.current || !canvasRef.current || !scanning) return;
       if (videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
@@ -115,7 +117,10 @@ export default function StaffScanPage() {
   const resetScan = () => {
     setResult(null);
     setScanning(true);
-    requestAnimationFrame(tick);
+    // Use timeout to ensure state update is processed
+    setTimeout(() => {
+      tick();
+    }, 100);
   };
 
   return (

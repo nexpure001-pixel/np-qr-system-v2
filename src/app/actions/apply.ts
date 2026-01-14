@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from "@/utils/supabase/server";
+import QRCode from 'qrcode';
 
 export async function submitApplication(formData: FormData) {
     const supabase = await createClient();
@@ -88,7 +89,6 @@ export async function submitApplication(formData: FormData) {
         const ticketUrl = `${baseUrl}/apply/complete?token=${participation.checkin_token}`;
 
         // Generate QR code as data URL
-        const QRCode = require('qrcode');
         const qrDataUrl = await QRCode.toDataURL(ticketUrl, { width: 300, margin: 2 });
 
         const emailBody = `<!DOCTYPE html>
@@ -134,8 +134,7 @@ export async function submitApplication(formData: FormData) {
         return { success: true, token: participation.checkin_token };
 
     } catch (err) {
-        console.error('Unexpected error:', err);
+        console.error('Apply Action Error:', err);
         return { success: false, error: 'システムエラーが発生しました。' };
     }
 }
-
