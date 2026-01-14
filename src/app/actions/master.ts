@@ -25,18 +25,35 @@ export async function getMasterData() {
         return { data: [], error: 'TENANT_NOT_FOUND' };
     }
 
-    const { data, error } = await supabase
-        .from('master_data')
-        .select('*')
-        .eq('tenant_id', tenant.id)
-        .order('created_at', { ascending: false })
-        .range(0, 9999); // Allow up to 10,000 records
+    // Fetch all data in batches to bypass 1000 row limit
+    const batchSize = 1000;
+    let allData: any[] = [];
+    let offset = 0;
+    let hasMore = true;
 
-    if (error) {
-        console.error('Fetch Master Data Error:', error);
-        return { data: [], error: error.message, code: error.code };
+    while (hasMore) {
+        const { data, error } = await supabase
+            .from('master_data')
+            .select('*')
+            .eq('tenant_id', tenant.id)
+            .order('created_at', { ascending: false })
+            .range(offset, offset + batchSize - 1);
+
+        if (error) {
+            console.error('Fetch Master Data Error:', error);
+            return { data: allData, error: error.message, code: error.code };
+        }
+
+        if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            offset += batchSize;
+            hasMore = data.length === batchSize; // Continue if we got a full batch
+        } else {
+            hasMore = false;
+        }
     }
-    return { data: data || [], error: null };
+
+    return { data: allData, error: null };
 }
 
 // Add single participant to company master
