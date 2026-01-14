@@ -1,11 +1,13 @@
 import { createAdminClient } from "@/utils/supabase/admin";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
     // 1. Basic Security
-    // Optional: Check Vercel Cron secret header
-    // if (request.headers.get('Authorization') !== `Bearer ${process.env.CRON_SECRET}`) { ... }
+    const authHeader = request.headers.get('Authorization');
+    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const supabase = createAdminClient();
 
