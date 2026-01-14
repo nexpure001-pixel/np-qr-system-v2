@@ -72,9 +72,36 @@ export default function MasterDataPage() {
         setIsImporting(true);
         try {
             const parsedData = await parseCSV(file);
-            const result = await importMasterDataCSV(parsedData);
+
+            // Auto-detect columns
+            if (parsedData.length === 0) {
+                alert('データが見つかりません');
+                return;
+            }
+
+            const headers = Object.keys(parsedData[0]).map(h => h.toLowerCase());
+            const idKey = Object.keys(parsedData[0]).find(k => {
+                const h = k.toLowerCase();
+                return h.includes('id') || h.includes('社員番号') || h.includes('番号');
+            });
+            const nameKey = Object.keys(parsedData[0]).find(k => {
+                const h = k.toLowerCase();
+                return h.includes('name') || h.includes('氏名') || h.includes('名前');
+            });
+
+            if (!idKey || !nameKey) {
+                alert('CSVに「ID」と「氏名」の列が必要です。');
+                return;
+            }
+
+            const formattedData = parsedData.map(row => ({
+                employee_id: row[idKey],
+                name: row[nameKey]
+            })).filter(r => r.employee_id && r.name);
+
+            const result = await importMasterDataCSV(formattedData);
             if (result.success) {
-                alert(`${parsedData.length}件のデータを登録しました。`);
+                alert(`${formattedData.length}件のデータを登録しました。`);
                 setRefreshKey(k => k + 1);
             } else {
                 alert(result.error);
