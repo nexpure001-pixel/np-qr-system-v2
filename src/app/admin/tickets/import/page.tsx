@@ -63,6 +63,7 @@ export default function TicketImportPage() {
                     // Auto-detect columns (prioritizing ID, Name, Price)
                     const headers = Object.keys(data[0]);
                     let idCol = headers[0], nameCol = headers[1], priceCol = headers[2];
+                    let quantityCol: string | null = null;
 
                     // Refine if headers match loose keywords even if order is slightly different
                     headers.forEach(h => {
@@ -70,12 +71,6 @@ export default function TicketImportPage() {
                         if (lowH.includes('id') || lowH.includes('番号') || lowH.includes('コード')) idCol = h;
                         if (lowH.includes('name') || lowH.includes('名前') || lowH.includes('氏名')) nameCol = h;
                         if (lowH.includes('price') || lowH.includes('金額') || lowH.includes('値段') || lowH.includes('product') || lowH.includes('商品')) priceCol = h;
-                        if (lowH.includes('枚数') || lowH.includes('個数') || lowH.includes('数量') || lowH.includes('qty') || lowH.includes('quantity') || lowH.includes('count')) quantityCol = h;
-                    });
-
-                    let quantityCol: string | null = null;
-                    headers.forEach(h => {
-                        const lowH = h.toLowerCase();
                         if (lowH.includes('枚数') || lowH.includes('個数') || lowH.includes('数量') || lowH.includes('qty') || lowH.includes('quantity') || lowH.includes('count')) quantityCol = h;
                     });
 
