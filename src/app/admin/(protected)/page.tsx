@@ -1,7 +1,8 @@
 'use client';
 
 import { Card } from "@/components/ui/Card";
-import { Users, CheckCircle, Clock, Calendar } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { Users, CheckCircle, Clock, Calendar, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getEvents, getEventStats } from "@/app/actions/dashboard";
@@ -181,11 +182,13 @@ function StatsCard({
     );
 }
 
+
 function ParticipantList({ eventId }: { eventId: string }) {
     const [participants, setParticipants] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [sending, setSending] = useState(false);
 
-    useEffect(() => {
+    const loadParticipants = () => {
         if (!eventId) return;
 
         setLoading(true);
@@ -195,7 +198,37 @@ function ParticipantList({ eventId }: { eventId: string }) {
                 setLoading(false);
             });
         });
+    };
+
+    useEffect(() => {
+        loadParticipants();
     }, [eventId]);
+
+    const handleBulkEmailSend = async () => {
+        if (!confirm('未送信の参加者にQRコードメールを一括送信しますか？')) return;
+
+        setSending(true);
+        try {
+            const response = await fetch('/api/send-bulk-emails', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ eventId })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                alert(`${result.count}名にメールを送信しました。`);
+                loadParticipants(); // Reload to update email_sent status
+            } else {
+                alert(`エラー: ${result.error}`);
+            }
+        } catch (error) {
+            console.error(error);
+            alert('メール送信中にエラーが発生しました。');
+        } finally {
+            setSending(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -214,9 +247,31 @@ function ParticipantList({ eventId }: { eventId: string }) {
         );
     }
 
+    const unsentCount = participants.filter(p => !p.email_sent).length;
+
     return (
         <Card className="p-6">
-            <h3 className="font-bold text-lg mb-4">参加者リスト ({participants.length}名)</h3>
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-lg">参加者リスト ({participants.length}名)</h3>
+                {unsentCount > 0 && (
+                    <Button
+                        onClick={handleBulkEmailSend}
+                        disabled={sending}
+                        className="bg-blue-600 hover:bg-blue-700"
+                    >
+                        {sending ? (
+                            <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                送信中...
+                            </>
+                        ) : (
+                            <>
+                                📧 メール一括送信 ({unsentCount}名)
+                            </>
+                        )}
+                    </Button>
+                )}
+            </div>
             <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                     <thead className="bg-muted/50 text-xs uppercase">
@@ -225,7 +280,8 @@ function ParticipantList({ eventId }: { eventId: string }) {
                             <th className="px-4 py-3 text-left">メール</th>
                             <th className="px-4 py-3 text-left">会員区分</th>
                             <th className="px-4 py-3 text-left">券種</th>
-                            <th className="px-4 py-3 text-left">ステータス</th>
+                            <th className="px-4 py-3 text-left">メール状態</th>
+                            <th className="px-4 py-3 text-left">入場状態</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -246,17 +302,22 @@ function ParticipantList({ eventId }: { eventId: string }) {
                                         </span>
                                     )}
                                 </td>
+                                <td className="px-4 py-3">{p.ticket_type}</td>
                                 <td className="px-4 py-3">
-                                    <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
-                                        {p.ticket_type || 'Standard'}
-                                    </span>
+                                    {p.email_sent ? (
+                                        <span className="text-xs text-green-600 font-bold">送信済み</span>
+                                    ) : (
+                                        <span className="text-xs text-foreground/40 font-bold">未送信</span>
+                                    )}
                                 </td>
                                 <td className="px-4 py-3">
-                                    {p.status === 'checked_in' ? (
-                                        <span className="text-green-600 font-bold">✓ 入場済</span>
-                                    ) : (
-                                        <span className="text-orange-500">未入場</span>
-                                    )}
+                                    <span className={`px-2 py-1 rounded text-xs font-bold ${p.status === 'checked_in' ? 'bg-green-100 text-green-700' :
+                                            p.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                                                'bg-gray-100 text-gray-700'
+                                        }`}>
+                                        {p.status === 'checked_in' ? '入場済み' :
+                                            p.status === 'pending' ? '未入場' : p.status}
+                                    </span>
                                 </td>
                             </tr>
                         ))}

@@ -135,6 +135,7 @@ export async function getEventParticipants(eventId: string) {
             email,
             ticket_type,
             status,
+            email_sent,
             created_at,
             master_data_id,
             master_data (
