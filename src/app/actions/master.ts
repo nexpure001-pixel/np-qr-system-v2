@@ -29,7 +29,8 @@ export async function getMasterData() {
         .from('master_data')
         .select('*')
         .eq('tenant_id', tenant.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(0, 9999); // Allow up to 10,000 records
 
     if (error) {
         console.error('Fetch Master Data Error:', error);
