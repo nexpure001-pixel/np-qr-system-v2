@@ -131,34 +131,40 @@ export async function checkIn(token: string) {
     .or(`checkin_token.eq.${actualToken},id.eq.${actualToken}`)
     .single();
 
-  // If not found by token/ID, try searching by Member ID (employee_id) within the current event
+  // If not found by token/ID, try searching by Member ID (company_code or master_data.employee_id) within the current event
   if (findError || !participation) {
-    const { data: memberPart, error: memberError } = await supabase
+    // 1. First, search by company_code in participations (covers both members and guests)
+    const { data: companyParts, error: companyError } = await supabase
       .from('participations')
       .select(`
-        id,
-        status,
-        checked_in_at,
-        ticket_type,
-        start_time,
-        re_entry_history,
-        name,
-        event_id,
-        events (
-          name
-        ),
-        master_data!inner (
-          name,
-          employee_id
-        )
+        id, status, checked_in_at, ticket_type, start_time, re_entry_history, name, event_id,
+        events ( name ),
+        master_data ( name, employee_id )
       `)
       .eq('event_id', session.eventId)
-      .eq('master_data.employee_id', actualToken)
-      .single();
+      .eq('company_code', actualToken)
+      .order('status', { ascending: false }); // Prioritize 'pending' over 'checked_in' if lucky, but we'll filter
 
-    if (!memberError && memberPart) {
-      participation = memberPart;
+    if (!companyError && companyParts && companyParts.length > 0) {
+      // Pick the first 'pending' one, or just the first if all checked in
+      participation = companyParts.find(p => p.status === 'pending') || companyParts[0];
       findError = null;
+    } else {
+      // 2. Fallback: Search by employee_id via master_data join (if not captured in company_code)
+      const { data: memberParts, error: memberError } = await supabase
+        .from('participations')
+        .select(`
+          id, status, checked_in_at, ticket_type, start_time, re_entry_history, name, event_id,
+          events ( name ),
+          master_data!inner ( name, employee_id )
+        `)
+        .eq('event_id', session.eventId)
+        .eq('master_data.employee_id', actualToken);
+
+      if (!memberError && memberParts && memberParts.length > 0) {
+        participation = memberParts.find(p => p.status === 'pending') || memberParts[0];
+        findError = null;
+      }
     }
   }
 
