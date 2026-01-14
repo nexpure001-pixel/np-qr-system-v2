@@ -13,6 +13,10 @@ export default function MasterDataPage() {
     const [loading, setLoading] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
 
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 100; // Display 100 items per page
+
     // CSV State
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isImporting, setIsImporting] = useState(false);
@@ -199,35 +203,72 @@ export default function MasterDataPage() {
                                 ) : data.length === 0 ? (
                                     <tr><td colSpan={5} className="p-8 text-center text-foreground/50">データがありません。</td></tr>
                                 ) : (
-                                    data.map((item) => (
-                                        <tr key={item.id} className="bg-white hover:bg-muted/10">
-                                            <td className="px-6 py-4 font-mono font-medium">{item.employee_id}</td>
-                                            <td className="px-6 py-4">{item.name}</td>
-                                            <td className="px-6 py-4 text-sm text-foreground/60">{item.email || '-'}</td>
-                                            <td className="px-6 py-4 text-right text-xs text-foreground/50">
-                                                {new Date(item.created_at).toLocaleDateString()}
-                                            </td>
-                                            <td className="px-6 py-4 text-center">
-                                                <Button
-                                                    variant="secondary"
-                                                    size="sm"
-                                                    onClick={() => handleDelete(item.id, item.name)}
-                                                    disabled={deleting === item.id}
-                                                    className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                                                >
-                                                    {deleting === item.id ? (
-                                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                                    ) : (
-                                                        <Trash2 className="w-4 h-4" />
-                                                    )}
-                                                </Button>
-                                            </td>
-                                        </tr>
-                                    ))
+                                    (() => {
+                                        const totalPages = Math.ceil(data.length / itemsPerPage);
+                                        const startIndex = (currentPage - 1) * itemsPerPage;
+                                        const endIndex = startIndex + itemsPerPage;
+                                        const currentData = data.slice(startIndex, endIndex);
+
+                                        return currentData.map((item) => (
+                                            <tr key={item.id} className="bg-white hover:bg-muted/10">
+                                                <td className="px-6 py-4 font-mono font-medium">{item.employee_id}</td>
+                                                <td className="px-6 py-4">{item.name}</td>
+                                                <td className="px-6 py-4 text-sm text-foreground/60">{item.email || '-'}</td>
+                                                <td className="px-6 py-4 text-right text-xs text-foreground/50">
+                                                    {new Date(item.created_at).toLocaleDateString()}
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <Button
+                                                        variant="secondary"
+                                                        size="sm"
+                                                        onClick={() => handleDelete(item.id, item.name)}
+                                                        disabled={deleting === item.id}
+                                                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                                                    >
+                                                        {deleting === item.id ? (
+                                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                                        ) : (
+                                                            <Trash2 className="w-4 h-4" />
+                                                        )}
+                                                    </Button>
+                                                </td>
+                                            </tr>
+                                        ));
+                                    })()
                                 )}
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Pagination Controls */}
+                    {data.length > itemsPerPage && (
+                        <div className="p-4 border-t border-border bg-muted/10 flex justify-between items-center">
+                            <div className="text-sm text-foreground/60">
+                                {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, data.length)} 件 / 全 {data.length} 件
+                            </div>
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                >
+                                    前へ
+                                </Button>
+                                <div className="flex items-center gap-2 px-3 text-sm font-bold">
+                                    {currentPage} / {Math.ceil(data.length / itemsPerPage)}
+                                </div>
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => setCurrentPage(p => Math.min(Math.ceil(data.length / itemsPerPage), p + 1))}
+                                    disabled={currentPage >= Math.ceil(data.length / itemsPerPage)}
+                                >
+                                    次へ
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </Card>
             </div>
         </div>
