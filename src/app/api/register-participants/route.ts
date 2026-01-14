@@ -43,10 +43,10 @@ export async function POST(request: NextRequest) {
         const ticketRules = event.ticket_config || [];
 
         const participationsToInsert = participants.map((p: any) => {
-            // Match ticket type by price
             let ticketType = 'Standard';
+            const priceStr = String(p.price || '');
             for (const rule of ticketRules) {
-                if (rule.keywords && rule.keywords.some((kw: string) => p.price.includes(kw))) {
+                if (rule.keywords && rule.keywords.some((kw: string) => priceStr.includes(kw))) {
                     ticketType = rule.name;
                     break;
                 }
