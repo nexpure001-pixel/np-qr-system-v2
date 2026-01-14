@@ -1,0 +1,15 @@
+name: cron-email
+
+on:
+  schedule:
+    - cron: '*/5 * * * *' # 5分おきに自動実行
+  workflow_dispatch: # 手動実行も可能にする
+
+jobs:
+  cron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Mail API
+        run: |
+          curl -X GET "${{ secrets.APP_URL }}/api/cron/mail" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
