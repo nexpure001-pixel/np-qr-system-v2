@@ -2,7 +2,7 @@
 
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Users, CheckCircle, Clock, Calendar, Loader2 } from "lucide-react";
+import { Users, CheckCircle, Clock, Calendar, Loader2, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import { getEvents, getEventStats } from "@/app/actions/dashboard";
@@ -287,6 +287,23 @@ function ParticipantList({ eventId }: { eventId: string }) {
         }
     };
 
+    const handleDeleteParticipant = async (id: string, name: string) => {
+        if (!confirm(`${name} 様の参加情報を削除しますか？\n（この操作は取り消せません）`)) return;
+
+        try {
+            const { deleteParticipation } = await import('@/app/actions/dashboard');
+            const res = await deleteParticipation(id);
+            if (res.success) {
+                loadParticipants();
+            } else {
+                alert('削除に失敗しました: ' + res.error);
+            }
+        } catch (error) {
+            console.error(error);
+            alert('削除中にエラーが発生しました。');
+        }
+    };
+
     if (loading) {
         return (
             <Card className="p-6">
@@ -361,6 +378,7 @@ function ParticipantList({ eventId }: { eventId: string }) {
                             <th className="px-4 py-3 text-left">券種</th>
                             <th className="px-4 py-3 text-left">メール状態</th>
                             <th className="px-4 py-3 text-left">入場状態</th>
+                            <th className="px-4 py-3 text-right">操作</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -397,6 +415,15 @@ function ParticipantList({ eventId }: { eventId: string }) {
                                         {p.status === 'checked_in' ? '入場済み' :
                                             p.status === 'pending' ? '未入場' : p.status}
                                     </span>
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                    <button
+                                        onClick={() => handleDeleteParticipant(p.id, p.name || '未登録')}
+                                        className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                                        title="削除"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
                                 </td>
                             </tr>
                         ))}

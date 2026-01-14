@@ -138,7 +138,7 @@ export async function checkIn(token: string) {
 
   // Check Event Mismatch
   if (participation.event_id !== session.eventId) {
-    const eventName = (participation.events as any)?.name || '別のイベント';
+    const eventName = (participation.events as unknown as { name: string })?.name || '別のイベント';
     return {
       success: false,
       error: `このチケットは「${eventName}」のものです。現在のイベント（${session.eventName}）では使用できません。`,

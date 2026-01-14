@@ -159,3 +159,52 @@ export async function getEventParticipants(eventId: string) {
 
     return participations || [];
 }
+
+// Delete a participation record
+export async function deleteParticipation(participationId: string) {
+    const supabase = await createClient();
+
+    // 1. Get User
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: '認証が必要です。' };
+
+    // 2. Verify ownership through participation -> event -> tenant
+    const { data: participation, error: findError } = await supabase
+        .from('participations')
+        .select(`
+            id,
+            event_id,
+            events!inner (
+                tenant_id,
+                tenants!inner (
+                    owner_id
+                )
+            )
+        `)
+        .eq('id', participationId)
+        .single();
+
+    if (findError || !participation) {
+        return { success: false, error: '対象が見つかりません。' };
+    }
+
+    const eventData = participation.events as unknown as { tenants: { owner_id: string } };
+    const ownerId = eventData?.tenants?.owner_id;
+
+    if (ownerId !== user.id) {
+        return { success: false, error: '削除権限がありません。' };
+    }
+
+    // 3. Delete
+    const { error: deleteError } = await supabase
+        .from('participations')
+        .delete()
+        .eq('id', participationId);
+
+    if (deleteError) {
+        console.error('Delete Error:', deleteError);
+        return { success: false, error: '削除に失敗しました。' };
+    }
+
+    return { success: true };
+}
