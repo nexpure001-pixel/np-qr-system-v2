@@ -294,17 +294,67 @@ export default function EventSettingsPage() {
                                                     </div>
                                                 </div>
                                                 <div>
-                                                    <label className="text-xs font-bold text-foreground/60 block mb-1">キーワード (カンマ区切り)</label>
-                                                    <input
-                                                        value={rule.keywords.join(', ')}
-                                                        onChange={(e) => {
-                                                            const n = [...newTicketRules];
-                                                            n[idx].keywords = e.target.value.split(',').map(k => k.trim()).filter(k => k);
-                                                            setNewTicketRules(n);
-                                                        }}
-                                                        className="w-full text-sm p-2 rounded border border-border bg-white"
-                                                        placeholder="例: 15400, 8800"
-                                                    />
+                                                    <label className="text-xs font-bold text-foreground/60 block mb-1">キーワード</label>
+                                                    <div className="space-y-2">
+                                                        {/* Display existing keywords as tags */}
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {rule.keywords.map((keyword: string, kidx: number) => (
+                                                                <span key={kidx} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
+                                                                    {keyword}
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            const n = [...newTicketRules];
+                                                                            n[idx].keywords.splice(kidx, 1);
+                                                                            setNewTicketRules(n);
+                                                                        }}
+                                                                        className="hover:text-red-600"
+                                                                    >
+                                                                        <X className="w-3 h-3" />
+                                                                    </button>
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                        {/* Add keyword input */}
+                                                        <div className="flex gap-2">
+                                                            <input
+                                                                type="text"
+                                                                id={`keyword-input-${idx}`}
+                                                                className="flex-1 text-sm p-2 rounded border border-border bg-white"
+                                                                placeholder="例: 8800 または 8,800"
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') {
+                                                                        e.preventDefault();
+                                                                        const input = e.currentTarget;
+                                                                        const value = input.value.trim();
+                                                                        if (value) {
+                                                                            const n = [...newTicketRules];
+                                                                            n[idx].keywords.push(value);
+                                                                            setNewTicketRules(n);
+                                                                            input.value = '';
+                                                                        }
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="secondary"
+                                                                onClick={() => {
+                                                                    const input = document.getElementById(`keyword-input-${idx}`) as HTMLInputElement;
+                                                                    const value = input?.value.trim();
+                                                                    if (value) {
+                                                                        const n = [...newTicketRules];
+                                                                        n[idx].keywords.push(value);
+                                                                        setNewTicketRules(n);
+                                                                        input.value = '';
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <Plus className="w-3 h-3" />
+                                                            </Button>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))}
@@ -529,14 +579,68 @@ export default function EventSettingsPage() {
                                                                                     </div>
                                                                                     <div>
                                                                                         <label className="text-xs font-bold text-foreground/60 block mb-1">
-                                                                                            紐付けキーワード (カンマ区切り)
+                                                                                            紐付けキーワード
                                                                                         </label>
-                                                                                        <input
-                                                                                            value={rule.keywords.join(', ')}
-                                                                                            onChange={(e) => handleRuleChange(idx, 'keywords', e.target.value)}
-                                                                                            className="w-full text-sm p-2 rounded border border-border bg-white"
-                                                                                            placeholder="例: 15400, 8800, VIP"
-                                                                                        />
+                                                                                        <div className="space-y-2">
+                                                                                            {/* Display existing keywords as tags */}
+                                                                                            <div className="flex flex-wrap gap-2">
+                                                                                                {rule.keywords.map((keyword: string, kidx: number) => (
+                                                                                                    <span key={kidx} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
+                                                                                                        {keyword}
+                                                                                                        <button
+                                                                                                            type="button"
+                                                                                                            onClick={() => {
+                                                                                                                const n = [...editingTicketRules];
+                                                                                                                n[idx].keywords.splice(kidx, 1);
+                                                                                                                setEditingTicketRules(n);
+                                                                                                            }}
+                                                                                                            className="hover:text-red-600"
+                                                                                                        >
+                                                                                                            <X className="w-3 h-3" />
+                                                                                                        </button>
+                                                                                                    </span>
+                                                                                                ))}
+                                                                                            </div>
+                                                                                            {/* Add keyword input */}
+                                                                                            <div className="flex gap-2">
+                                                                                                <input
+                                                                                                    type="text"
+                                                                                                    id={`edit-keyword-input-${idx}`}
+                                                                                                    className="flex-1 text-sm p-2 rounded border border-border bg-white"
+                                                                                                    placeholder="例: 8800 または 8,800"
+                                                                                                    onKeyDown={(e) => {
+                                                                                                        if (e.key === 'Enter') {
+                                                                                                            e.preventDefault();
+                                                                                                            const input = e.currentTarget;
+                                                                                                            const value = input.value.trim();
+                                                                                                            if (value) {
+                                                                                                                const n = [...editingTicketRules];
+                                                                                                                n[idx].keywords.push(value);
+                                                                                                                setEditingTicketRules(n);
+                                                                                                                input.value = '';
+                                                                                                            }
+                                                                                                        }
+                                                                                                    }}
+                                                                                                />
+                                                                                                <Button
+                                                                                                    type="button"
+                                                                                                    size="sm"
+                                                                                                    variant="secondary"
+                                                                                                    onClick={() => {
+                                                                                                        const input = document.getElementById(`edit-keyword-input-${idx}`) as HTMLInputElement;
+                                                                                                        const value = input?.value.trim();
+                                                                                                        if (value) {
+                                                                                                            const n = [...editingTicketRules];
+                                                                                                            n[idx].keywords.push(value);
+                                                                                                            setEditingTicketRules(n);
+                                                                                                            input.value = '';
+                                                                                                        }
+                                                                                                    }}
+                                                                                                >
+                                                                                                    <Plus className="w-3 h-3" />
+                                                                                                </Button>
+                                                                                            </div>
+                                                                                        </div>
                                                                                     </div>
                                                                                 </div>
                                                                             ))}
