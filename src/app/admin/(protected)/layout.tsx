@@ -58,6 +58,9 @@ export default function AdminLayout({
                             <Link href="/admin/settings" className="text-foreground/70 hover:text-primary transition-colors">
                                 イベント設定
                             </Link>
+                            <Link href="/admin/tickets/import" className="text-foreground/70 hover:text-primary transition-colors">
+                                チケット一括登録
+                            </Link>
                             <Link href="/admin/settings/smtp" className="text-foreground/70 hover:text-primary transition-colors">
                                 SMTP設定
                             </Link>

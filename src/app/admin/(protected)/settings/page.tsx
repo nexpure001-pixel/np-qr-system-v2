@@ -21,6 +21,10 @@ export default function EventSettingsPage() {
     const [editingTicketRules, setEditingTicketRules] = useState<any[]>([]);
     const [saving, setSaving] = useState(false);
 
+    // Create Form State
+    const [createIsPublic, setCreateIsPublic] = useState(true);
+    const [newTicketRules, setNewTicketRules] = useState<any[]>([]);
+
     const fetchEvents = () => {
         getEvents().then(data => {
             setEvents(data);
@@ -179,7 +183,15 @@ export default function EventSettingsPage() {
                 </div>
 
                 <Card className="p-8 border-l-4 border-l-primary">
-                    <form id="create-event-form" action={handleCreate} className="space-y-6">
+                    <form id="create-event-form" onSubmit={(e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.currentTarget);
+                        formData.set('is_public_application', createIsPublic ? 'on' : 'off'); // Explicitly set based on state
+                        if (!createIsPublic) {
+                            formData.set('ticket_config', JSON.stringify(newTicketRules));
+                        }
+                        handleCreate(formData);
+                    }} className="space-y-6">
                         <Input
                             name="name"
                             label="イベント名"
@@ -204,9 +216,10 @@ export default function EventSettingsPage() {
                         <div className="flex items-center gap-2 p-4 bg-muted/20 rounded-lg border border-border/50">
                             <input
                                 type="checkbox"
-                                name="is_public_application"
+                                name="is_public_application_checkbox" // dummy name, handled by state
                                 id="is_public_application"
-                                defaultChecked
+                                checked={createIsPublic}
+                                onChange={(e) => setCreateIsPublic(e.target.checked)}
                                 className="w-5 h-5 text-primary rounded border-gray-300 focus:ring-primary"
                             />
                             <label htmlFor="is_public_application" className="cursor-pointer select-none">
@@ -217,6 +230,88 @@ export default function EventSettingsPage() {
                                 </span>
                             </label>
                         </div>
+
+                        {/* Ticket Rules for Create Form - Only if Private */}
+                        {!createIsPublic && (
+                            <section className="space-y-4 border-t pt-4">
+                                <div className="flex items-center justify-between border-b pb-2">
+                                    <h3 className="font-bold">チケット変換ルール (CSVインポート用)</h3>
+                                    <Button size="sm" type="button" variant="secondary" onClick={() => setNewTicketRules([...newTicketRules, { id: crypto.randomUUID(), name: '', keywords: [], startTime: '' }])} className="text-xs">
+                                        <Plus className="w-3 h-3 mr-1" />
+                                        ルール追加
+                                    </Button>
+                                </div>
+                                <p className="text-sm text-foreground/60">
+                                    招待制イベントの場合、インポートするCSVに合わせてチケットルールを設定してください。
+                                </p>
+
+                                {newTicketRules.length === 0 ? (
+                                    <div className="text-center py-6 bg-muted/10 rounded-lg border border-dashed border-foreground/20 text-foreground/40 text-sm">
+                                        ルールが設定されていません。
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {newTicketRules.map((rule, idx) => (
+                                            <div key={rule.id} className="p-4 bg-muted/10 rounded-lg border border-border relative group">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const n = [...newTicketRules];
+                                                        n.splice(idx, 1);
+                                                        setNewTicketRules(n);
+                                                    }}
+                                                    className="absolute top-2 right-2 text-foreground/30 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                                                    <div>
+                                                        <label className="text-xs font-bold text-foreground/60 block mb-1">券種名</label>
+                                                        <input
+                                                            value={rule.name}
+                                                            onChange={(e) => {
+                                                                const n = [...newTicketRules];
+                                                                n[idx].name = e.target.value;
+                                                                setNewTicketRules(n);
+                                                            }}
+                                                            className="w-full text-sm p-2 rounded border border-border"
+                                                            placeholder="例: PriorityPass"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs font-bold text-foreground/60 block mb-1">入場時間</label>
+                                                        <input
+                                                            value={rule.startTime}
+                                                            onChange={(e) => {
+                                                                const n = [...newTicketRules];
+                                                                n[idx].startTime = e.target.value;
+                                                                setNewTicketRules(n);
+                                                            }}
+                                                            className="w-full text-sm p-2 rounded border border-border"
+                                                            placeholder="例: 18:30-19:00"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs font-bold text-foreground/60 block mb-1">キーワード (カンマ区切り)</label>
+                                                    <input
+                                                        value={rule.keywords.join(', ')}
+                                                        onChange={(e) => {
+                                                            const n = [...newTicketRules];
+                                                            n[idx].keywords = e.target.value.split(',').map(k => k.trim()).filter(k => k);
+                                                            setNewTicketRules(n);
+                                                        }}
+                                                        className="w-full text-sm p-2 rounded border border-border bg-white"
+                                                        placeholder="例: 15400, 8800"
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </section>
+                        )}
 
                         {error && <p className="text-red-500 font-bold text-sm">{error}</p>}
 

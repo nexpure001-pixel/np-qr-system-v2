@@ -68,7 +68,8 @@ export async function createEvent(formData: FormData) {
             name,
             event_code: eventCode,
             staff_passcode: staffPasscode,
-            is_public_application: isPublicApplication
+            is_public_application: isPublicApplication,
+            ticket_config: formData.get('ticket_config') ? JSON.parse(formData.get('ticket_config') as string) : []
         })
         .select()
         .single();
