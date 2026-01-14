@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
         // Get unsent participants
         const { data: participants, error: fetchError } = await supabase
             .from('participations')
-            .select('id, name, email, ticket_type, qr_code')
+            .select('id, name, email, ticket_type')
             .eq('event_id', eventId)
             .eq('email_sent', false)
             .not('email', 'is', null); // Only those with email addresses
