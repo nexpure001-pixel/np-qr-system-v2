@@ -1,7 +1,7 @@
 'use client';
 
 import Link from "next/link";
-import { LogOut, Settings, Users, BarChart, Building2, List, PlusCircle } from "lucide-react";
+import { LogOut, List, PlusCircle, BarChart, Building2 } from "lucide-react";
 import { signOut } from "@/app/auth/actions";
 import { useEffect, useState } from "react";
 import { getTenantInfo } from "@/app/actions/dashboard";

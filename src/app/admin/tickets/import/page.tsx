@@ -143,7 +143,7 @@ export default function TicketImportPage() {
                 try {
                     const errorJson = JSON.parse(errorText);
                     errorMsg = errorJson.error || errorMsg;
-                } catch (e) {
+                } catch {
                     errorMsg = errorText || errorMsg;
                 }
                 setResult({ success: false, message: `エラー: ${errorMsg}` });

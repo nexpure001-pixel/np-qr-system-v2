@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Users, CheckCircle, Clock, Calendar, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getEvents, getEventStats } from "@/app/actions/dashboard";
 import { isSuperAdmin } from "@/app/actions/super-admin";
 import { useRouter } from "next/navigation";
@@ -188,7 +188,7 @@ function ParticipantList({ eventId }: { eventId: string }) {
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
 
-    const loadParticipants = () => {
+    const loadParticipants = useCallback(() => {
         if (!eventId) return;
 
         setLoading(true);
@@ -198,11 +198,11 @@ function ParticipantList({ eventId }: { eventId: string }) {
                 setLoading(false);
             });
         });
-    };
+    }, [eventId]);
 
     useEffect(() => {
         loadParticipants();
-    }, [eventId]);
+    }, [loadParticipants]);
 
     const handleBulkEmailSend = async () => {
         if (!confirm('未送信の参加者にQRコードメールを一括送信しますか？')) return;
@@ -312,8 +312,8 @@ function ParticipantList({ eventId }: { eventId: string }) {
                                 </td>
                                 <td className="px-4 py-3">
                                     <span className={`px-2 py-1 rounded text-xs font-bold ${p.status === 'checked_in' ? 'bg-green-100 text-green-700' :
-                                            p.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                                                'bg-gray-100 text-gray-700'
+                                        p.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                                            'bg-gray-100 text-gray-700'
                                         }`}>
                                         {p.status === 'checked_in' ? '入場済み' :
                                             p.status === 'pending' ? '未入場' : p.status}

@@ -20,8 +20,7 @@ async function check() {
     console.log(`Checking connection to: ${url}`);
 
     // Try to query tenants table
-    const { data, error } = await supabase.from('tenants').select('*').limit(1);
-
+    const { error } = await supabase.from('events').select('*');
     if (error) {
         if (error.code === '42P01') { // undefined_table
             console.log("SUCCESS: Connection successful, but tables do not exist yet (as expected before migration).");

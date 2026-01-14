@@ -86,7 +86,7 @@ export async function getStaffSession(): Promise<StaffSession | null> {
 
   try {
     return JSON.parse(sessionCookie.value);
-  } catch (e) {
+  } catch {
     return null;
   }
 }

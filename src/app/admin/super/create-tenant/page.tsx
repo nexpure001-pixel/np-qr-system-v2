@@ -4,7 +4,7 @@ import { autoGenerateCompanyCode, createTenantAccount } from "@/app/actions/supe
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
-import { Loader2, ArrowLeft, Building, Mail, Key } from "lucide-react";
+import { Loader2, ArrowLeft, Key } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 

@@ -66,7 +66,7 @@ export async function submitApplication(formData: FormData) {
         }
 
         // 6. Create Participation Record
-        const { data: participation, error: createError } = await supabase
+        const { data: participations, error } = await supabase
             .from('participations')
             .insert({
                 event_id: event.id,
@@ -79,14 +79,14 @@ export async function submitApplication(formData: FormData) {
             .select('checkin_token')
             .single();
 
-        if (createError) {
-            console.error('Participation Error:', createError);
+        if (error) {
+            console.error('Participation Error:', error);
             return { success: false, error: 'データ保存に失敗しました。' };
         }
 
         // 7. Queue Email with QR Code
         const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
-        const ticketUrl = `${baseUrl}/apply/complete?token=${participation.checkin_token}`;
+        const ticketUrl = `${baseUrl}/apply/complete?token=${participations.checkin_token}`;
 
         // Generate QR code as data URL
         const qrDataUrl = await QRCode.toDataURL(ticketUrl, { width: 300, margin: 2 });
@@ -127,14 +127,14 @@ export async function submitApplication(formData: FormData) {
         try {
             const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
             fetch(`${baseUrl}/api/cron/mail`, { method: 'GET', cache: 'no-store' });
-        } catch (e) {
+        } catch {
             // Ignore
         }
 
-        return { success: true, token: participation.checkin_token };
+        return { success: true, token: participations.checkin_token };
 
-    } catch (err) {
-        console.error('Apply Action Error:', err);
+    } catch {
+        console.error('Check-in Error: An unknown error occurred.');
         return { success: false, error: 'システムエラーが発生しました。' };
     }
 }

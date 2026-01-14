@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/Input";
 import { getMasterData, addMasterDataRecord, importMasterDataCSV, deleteMasterData } from "@/app/actions/master";
 import { parseCSV } from "@/utils/csvParser";
 import { useEffect, useState, useRef } from "react";
-import { Plus, Upload, CheckCircle, XCircle, User, Loader2, AlertCircle, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, Upload, AlertCircle, User } from 'lucide-react';
 
 export default function MasterDataPage() {
     const [data, setData] = useState<any[]>([]);
@@ -83,7 +83,7 @@ export default function MasterDataPage() {
                 return;
             }
 
-            const headers = Object.keys(parsedData[0]).map(h => h.toLowerCase());
+
             const idKey = Object.keys(parsedData[0]).find(k => {
                 const h = k.toLowerCase();
                 return h.includes('id') || h.includes('社員番号') || h.includes('番号');
@@ -204,7 +204,6 @@ export default function MasterDataPage() {
                                     <tr><td colSpan={5} className="p-8 text-center text-foreground/50">データがありません。</td></tr>
                                 ) : (
                                     (() => {
-                                        const totalPages = Math.ceil(data.length / itemsPerPage);
                                         const startIndex = (currentPage - 1) * itemsPerPage;
                                         const endIndex = startIndex + itemsPerPage;
                                         const currentData = data.slice(startIndex, endIndex);

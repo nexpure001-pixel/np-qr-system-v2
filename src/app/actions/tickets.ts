@@ -30,7 +30,6 @@ export async function importTickets(eventId: string, tickets: any[]) {
     // 3. Prepare Bulk Insert Data
     const participationData = [];
     const mailJobsData = [];
-    const errors = [];
 
     for (const ticket of tickets) {
         // Skip invalid rows
@@ -67,19 +66,19 @@ export async function importTickets(eventId: string, tickets: any[]) {
     }
 
     // 4. Insert Participations
-    const { data: insertedParticipations, error: insertError } = await supabase
+    const { data: participations, error } = await supabase
         .from('participations')
         .insert(participationData)
         .select();
 
-    if (insertError) {
-        console.error('Import Error:', insertError);
-        return { success: false, error: 'データの保存に失敗しました: ' + insertError.message };
+    if (error) {
+        console.error('Import Error:', error);
+        return { success: false, error: 'データの保存に失敗しました: ' + error.message };
     }
 
     // 5. Create Mail Jobs for inserted tickets
     // We need to loop through inserted data to get their IDs (token)
-    for (const p of insertedParticipations) {
+    for (const p of participations) {
         // Generate QR URL
         const qrUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/start?token=${p.id}`;
 
@@ -138,5 +137,5 @@ export async function importTickets(eventId: string, tickets: any[]) {
         }
     }
 
-    return { success: true, count: insertedParticipations.length };
+    return { success: true, count: participations.length };
 }

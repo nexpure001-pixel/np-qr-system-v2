@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import jsQR from 'jsqr';
 import { checkIn, staffLogout, getStaffSession } from '@/app/actions/staff';
 import { Button } from '@/components/ui/Button';
-import { Loader2, LogOut, CheckCircle, AlertTriangle, XCircle, Camera } from 'lucide-react';
+import { LogOut, CheckCircle, AlertTriangle, XCircle, Camera } from 'lucide-react';
 
 export default function StaffScanPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -95,8 +95,7 @@ export default function StaffScanPage() {
       videoRef.current.setAttribute("playsinline", "true"); // required to tell iOS safari we don't want fullscreen
       videoRef.current.play();
       tick();
-    } catch (err) {
-      console.error("Camera Error:", err);
+    } catch {
       setResult({ type: 'error', message: 'カメラの起動に失敗しました。権限を確認してください。' });
     }
   }, [tick]);

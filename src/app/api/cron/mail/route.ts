@@ -2,7 +2,7 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 
-export async function GET(request: Request) {
+export async function GET() {
     // 1. Basic Security
     // Optional: Check Vercel Cron secret header
     // if (request.headers.get('Authorization') !== `Bearer ${process.env.CRON_SECRET}`) { ... }
