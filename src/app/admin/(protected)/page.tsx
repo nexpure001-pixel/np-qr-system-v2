@@ -180,3 +180,89 @@ function StatsCard({
         </Card>
     );
 }
+
+function ParticipantList({ eventId }: { eventId: string }) {
+    const [participants, setParticipants] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!eventId) return;
+
+        setLoading(true);
+        import('@/app/actions/dashboard').then(({ getEventParticipants }) => {
+            getEventParticipants(eventId).then(data => {
+                setParticipants(data);
+                setLoading(false);
+            });
+        });
+    }, [eventId]);
+
+    if (loading) {
+        return (
+            <Card className="p-6">
+                <p className="text-center text-foreground/60">読み込み中...</p>
+            </Card>
+        );
+    }
+
+    if (participants.length === 0) {
+        return (
+            <Card className="p-6">
+                <h3 className="font-bold text-lg mb-4">参加者リスト</h3>
+                <p className="text-center text-foreground/60">まだ参加者がいません</p>
+            </Card>
+        );
+    }
+
+    return (
+        <Card className="p-6">
+            <h3 className="font-bold text-lg mb-4">参加者リスト ({participants.length}名)</h3>
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                    <thead className="bg-muted/50 text-xs uppercase">
+                        <tr>
+                            <th className="px-4 py-3 text-left">氏名</th>
+                            <th className="px-4 py-3 text-left">メール</th>
+                            <th className="px-4 py-3 text-left">会員区分</th>
+                            <th className="px-4 py-3 text-left">券種</th>
+                            <th className="px-4 py-3 text-left">ステータス</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                        {participants.map((p) => (
+                            <tr key={p.id} className="hover:bg-muted/10">
+                                <td className="px-4 py-3 font-bold">{p.name}</td>
+                                <td className="px-4 py-3 text-foreground/70">{p.email}</td>
+                                <td className="px-4 py-3">
+                                    {p.master_data_id ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded text-xs font-bold">
+                                            <CheckCircle className="w-3 h-3" />
+                                            会員
+                                        </span>
+                                    ) : (
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">
+                                            <Users className="w-3 h-3" />
+                                            ゲスト
+                                        </span>
+                                    )}
+                                </td>
+                                <td className="px-4 py-3">
+                                    <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
+                                        {p.ticket_type || 'Standard'}
+                                    </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                    {p.status === 'checked_in' ? (
+                                        <span className="text-green-600 font-bold">✓ 入場済</span>
+                                    ) : (
+                                        <span className="text-orange-500">未入場</span>
+                                    )}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </Card>
+    );
+}
