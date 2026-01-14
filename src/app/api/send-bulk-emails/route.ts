@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
+import { createAdminClient } from '@/utils/supabase/admin';
 
 export async function POST(request: NextRequest) {
     try {
@@ -17,15 +18,26 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: false, error: 'ログインしてください。' }, { status: 401 });
         }
 
-        // Get event details
-        const { data: event } = await supabase
+        // Get event details and verify ownership
+        const { data: event, error: eventError } = await supabase
             .from('events')
-            .select('id, name, event_code, event_date')
+            .select(`
+                id, 
+                name, 
+                event_code,
+                tenants!inner (
+                    owner_id
+                )
+            `)
             .eq('id', eventId)
             .single();
 
-        if (!event) {
-            return NextResponse.json({ success: false, error: 'イベントが見つかりません。' }, { status: 404 });
+        const tenantInfo = event?.tenants as unknown as { owner_id: string } | { owner_id: string }[];
+        const ownerId = Array.isArray(tenantInfo) ? tenantInfo[0]?.owner_id : tenantInfo?.owner_id;
+
+        if (eventError || !event || ownerId !== user.id) {
+            console.error('Event fetch/permission error:', eventError);
+            return NextResponse.json({ success: false, error: 'イベントが見つからないか、権限がありません。' }, { status: 404 });
         }
 
         // Get unsent participants
@@ -45,14 +57,10 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: false, error: '送信対象の参加者がいません。' }, { status: 400 });
         }
 
-        // Get tenant ID
-        const { data: tenant } = await supabase
-            .from('tenants')
-            .select('id')
-            .eq('owner_id', user.id)
-            .single();
+        // Get tenant ID (needed for mail_jobs)
+        const tenant_id = Array.isArray(tenantInfo) ? (event.tenants as any)[0].id : (event.tenants as any).id || (event as any).tenant_id;
 
-        if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 403 });
+        const adminSupabase = createAdminClient();
 
         // Queue email jobs
         const emailJobs = participants.map(p => {
@@ -73,13 +81,12 @@ export async function POST(request: NextRequest) {
                     
                     <div style="border-t: 1px solid #eee; padding-top: 20px; font-size: 14px; color: #555;">
                         <p><strong>券種:</strong> ${p.ticket_type}</p>
-                        <p><strong>開催日:</strong> ${event.event_date || '当日'}</p>
                     </div>
                 </div>
             `;
 
             return {
-                tenant_id: tenant.id,
+                tenant_id: tenant_id,
                 to_email: p.email,
                 subject: `【${event.name}】入場チケットのご案内`,
                 body: body,
@@ -88,7 +95,7 @@ export async function POST(request: NextRequest) {
             };
         });
 
-        const { error: insertError } = await supabase
+        const { error: insertError } = await adminSupabase
             .from('mail_jobs')
             .insert(emailJobs);
 
