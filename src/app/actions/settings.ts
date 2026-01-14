@@ -211,7 +211,8 @@ interface EventUpdateData {
     event_code?: string;
     staff_passcode?: string;
     is_public_application?: boolean;
-    ticket_config?: TicketRule[]; // ticket_config is a JSON array
+    ticket_config?: TicketRule[];
+    email_template?: string;
 }
 
 // Update event details (including ticket settings)
@@ -249,6 +250,7 @@ export async function updateEvent(eventId: string, data: EventUpdateData) {
         staff_passcode?: string;
         is_public_application?: boolean;
         ticket_config?: TicketRule[];
+        email_template?: string;
         updated_at: string;
     } = {
         updated_at: new Date().toISOString()
@@ -258,6 +260,7 @@ export async function updateEvent(eventId: string, data: EventUpdateData) {
     if (data.staff_passcode !== undefined) updates.staff_passcode = data.staff_passcode;
     if (data.is_public_application !== undefined) updates.is_public_application = data.is_public_application;
     if (data.ticket_config !== undefined) updates.ticket_config = data.ticket_config;
+    if (data.email_template !== undefined) updates.email_template = data.email_template;
 
     const { error } = await supabase
         .from('events')

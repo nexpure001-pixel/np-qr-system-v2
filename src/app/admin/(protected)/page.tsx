@@ -13,6 +13,7 @@ interface EventRecord {
     id: string;
     name: string;
     event_code: string;
+    email_template?: string;
     created_at: string;
 }
 
@@ -213,6 +214,8 @@ function ParticipantList({ eventId }: { eventId: string }) {
     const [participants, setParticipants] = useState<ParticipantRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
+    const [emailTemplate, setEmailTemplate] = useState('');
+    const [savingTemplate, setSavingTemplate] = useState(false);
 
     const loadParticipants = useCallback(() => {
         if (!eventId) return;
@@ -224,11 +227,39 @@ function ParticipantList({ eventId }: { eventId: string }) {
                 setLoading(false);
             });
         });
+
+        // Load current template
+        import('@/app/actions/settings').then(({ getEvents }) => {
+            getEvents().then(events => {
+                const currentEvent = (events as EventRecord[]).find(e => e.id === eventId);
+                if (currentEvent) {
+                    setEmailTemplate(currentEvent.email_template || '');
+                }
+            });
+        });
     }, [eventId]);
 
     useEffect(() => {
         loadParticipants();
     }, [loadParticipants]);
+
+    const handleSaveTemplate = async () => {
+        setSavingTemplate(true);
+        try {
+            const { updateEvent } = await import('@/app/actions/settings');
+            const res = await updateEvent(eventId, { email_template: emailTemplate });
+            if (res.success) {
+                alert('メールテンプレートを保存しました。');
+            } else {
+                alert('保存に失敗しました: ' + res.error);
+            }
+        } catch (error) {
+            console.error(error);
+            alert('保存中にエラーが発生しました。');
+        } finally {
+            setSavingTemplate(false);
+        }
+    };
 
     const handleBulkEmailSend = async () => {
         if (!confirm('未送信の参加者にQRコードメールを一括送信しますか？')) return;
@@ -277,13 +308,31 @@ function ParticipantList({ eventId }: { eventId: string }) {
 
     return (
         <Card className="p-6">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-lg">参加者リスト ({participants.length}名)</h3>
-                {unsentCount > 0 && (
+            <div className="flex flex-col md:flex-row md:items-end gap-4 mb-6 p-4 bg-blue-50/50 border border-blue-100 rounded-xl">
+                <div className="flex-1">
+                    <label className="block text-sm font-bold text-blue-900 mb-2 flex items-center gap-2">
+                        <span>📧 メール本文への追記（イベント別）</span>
+                        <span className="text-[10px] font-normal bg-blue-100 px-2 py-0.5 rounded text-blue-700">通知メールの下部に追加されます</span>
+                    </label>
+                    <textarea
+                        value={emailTemplate}
+                        onChange={(e) => setEmailTemplate(e.target.value)}
+                        placeholder="例: 会場はこちらです https://... お気をつけてお越しください。"
+                        className="w-full h-24 p-3 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white placeholder:text-blue-300"
+                    />
+                </div>
+                <div className="flex flex-col gap-2">
+                    <Button
+                        onClick={handleSaveTemplate}
+                        disabled={savingTemplate}
+                        className="bg-blue-100 text-blue-700 hover:bg-blue-200 border-none text-xs h-9"
+                    >
+                        {savingTemplate ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : '本文を保存'}
+                    </Button>
                     <Button
                         onClick={handleBulkEmailSend}
-                        disabled={sending}
-                        className="bg-blue-600 hover:bg-blue-700"
+                        disabled={sending || unsentCount === 0}
+                        className="bg-blue-600 hover:bg-blue-700 h-10 font-bold whitespace-nowrap"
                     >
                         {sending ? (
                             <>
@@ -296,7 +345,11 @@ function ParticipantList({ eventId }: { eventId: string }) {
                             </>
                         )}
                     </Button>
-                )}
+                </div>
+            </div>
+
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-lg">参加者リスト ({participants.length}名)</h3>
             </div>
             <div className="overflow-x-auto">
                 <table className="w-full text-sm">

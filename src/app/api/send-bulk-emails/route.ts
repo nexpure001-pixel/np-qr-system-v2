@@ -25,7 +25,9 @@ export async function POST(request: NextRequest) {
                 id, 
                 name, 
                 event_code,
+                email_template,
                 tenants!inner (
+                    id,
                     owner_id
                 )
             `)
@@ -58,7 +60,8 @@ export async function POST(request: NextRequest) {
         }
 
         // Get tenant ID (needed for mail_jobs)
-        const tenant_id = Array.isArray(tenantInfo) ? (event.tenants as any)[0].id : (event.tenants as any).id || (event as any).tenant_id;
+        const tenantsData = event.tenants as unknown as { id: string } | { id: string }[];
+        const tenant_id = Array.isArray(tenantsData) ? tenantsData[0].id : tenantsData.id;
 
         const adminSupabase = createAdminClient();
 
@@ -82,6 +85,11 @@ export async function POST(request: NextRequest) {
                     <div style="border-t: 1px solid #eee; padding-top: 20px; font-size: 14px; color: #555;">
                         <p><strong>券種:</strong> ${p.ticket_type}</p>
                     </div>
+                    ${event.email_template ? `
+                    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px dashed #eee; font-size: 14px; color: #333; line-height: 1.6;">
+                        ${event.email_template.replace(/\n/g, '<br>')}
+                    </div>
+                    ` : ''}
                 </div>
             `;
 
