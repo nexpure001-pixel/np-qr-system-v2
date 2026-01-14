@@ -101,7 +101,15 @@ export async function checkIn(token: string) {
     return { success: false, error: 'セッションが無効です。再ログインしてください。' };
   }
 
-  // 2. Find Participation by Token
+  // 2. Extract token/id from URL if necessary
+  let actualToken = token;
+  if (token.includes('/checkin/')) {
+    // legacy support: extract ID from URL
+    actualToken = token.split('/checkin/').pop() || token;
+  }
+
+  // 2. Find Participation by Token or ID
+  // We check globally first to provide a better error message if event_id doesn't match
   const { data: participation, error: findError } = await supabase
     .from('participations')
     .select(`
@@ -112,16 +120,30 @@ export async function checkIn(token: string) {
       start_time,
       re_entry_history,
       name,
+      event_id,
+      events (
+        name
+      ),
       master_data (
         name
       )
     `)
-    .eq('checkin_token', token)
-    .eq('event_id', session.eventId)
+    .or(`checkin_token.eq.${actualToken},id.eq.${actualToken}`)
     .single();
 
   if (findError || !participation) {
-    return { success: false, error: '無効なQRコードです。', errorCode: 'INVALID_TOKEN' };
+    console.warn(`Check-in: Token not found [${actualToken}]`);
+    return { success: false, error: '無効なQRコードです。システムに登録がありません。', errorCode: 'INVALID_TOKEN' };
+  }
+
+  // Check Event Mismatch
+  if (participation.event_id !== session.eventId) {
+    const eventName = (participation.events as any)?.name || '別のイベント';
+    return {
+      success: false,
+      error: `このチケットは「${eventName}」のものです。現在のイベント（${session.eventName}）では使用できません。`,
+      errorCode: 'EVENT_MISMATCH'
+    };
   }
 
   // Get Name (Guest or Master Data)
