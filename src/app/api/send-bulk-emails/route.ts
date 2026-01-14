@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
         }));
 
         const { error: insertError } = await supabase
-            .from('mail_queue')
+            .from('mail_jobs')
             .insert(emailJobs);
 
         if (insertError) {

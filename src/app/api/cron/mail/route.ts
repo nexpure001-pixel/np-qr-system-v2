@@ -1,14 +1,13 @@
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 
 export async function GET(request: Request) {
-    // 1. Basic Security (Optional: Check a secret header or key from env)
-    const { searchParams } = new URL(request.url);
-    // const cronSecret = searchParams.get('key');
-    // if (cronSecret !== process.env.CRON_SECRET) { ... }
+    // 1. Basic Security
+    // Optional: Check Vercel Cron secret header
+    // if (request.headers.get('Authorization') !== `Bearer ${process.env.CRON_SECRET}`) { ... }
 
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     // 2. Fetch Pending Jobs with Tenant Info
     const { data: jobs, error } = await supabase
