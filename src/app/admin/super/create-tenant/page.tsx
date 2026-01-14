@@ -30,7 +30,7 @@ export default function CreateTenantPage() {
         if (res.success) {
             setResult(res.credentials);
         } else {
-            setError(res.error);
+            setError(res.error || 'Unknown error');
         }
         setLoading(false);
     };
