@@ -89,7 +89,6 @@ export default function CreateTenantPage() {
                             label="企業名"
                             placeholder="株式会社Example"
                             required
-                            icon={<Building className="w-4 h-4" />}
                         />
 
                         <div className="space-y-2">
@@ -116,7 +115,6 @@ export default function CreateTenantPage() {
                             label="管理者メールアドレス"
                             placeholder="admin@example.co.jp"
                             required
-                            icon={<Mail className="w-4 h-4" />}
                         />
 
                         {error && (
