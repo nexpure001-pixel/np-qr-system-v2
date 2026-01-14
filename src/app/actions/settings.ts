@@ -54,6 +54,7 @@ export async function createEvent(formData: FormData) {
     const name = formData.get('name') as string;
     const eventCode = formData.get('event_code') as string;
     const staffPasscode = formData.get('staff_passcode') as string;
+    const isPublicApplication = formData.get('is_public_application') === 'on';
 
     if (!name || !eventCode || !staffPasscode) {
         return { success: false, error: '必須項目が入力されていません。' };
@@ -66,7 +67,8 @@ export async function createEvent(formData: FormData) {
             tenant_id: tenant.id,
             name,
             event_code: eventCode,
-            staff_passcode: staffPasscode
+            staff_passcode: staffPasscode,
+            is_public_application: isPublicApplication
         })
         .select()
         .single();
@@ -191,6 +193,60 @@ export async function deleteEvent(eventId: string) {
     if (deleteError) {
         console.error('Delete Event Error:', deleteError);
         return { success: false, error: 'イベント削除に失敗しました。' };
+    }
+
+    return { success: true };
+}
+
+// Update event details (including ticket settings)
+export async function updateEvent(eventId: string, data: any) {
+    const supabase = await createClient();
+
+    // 1. Get User
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: 'ログインしてください。' };
+
+    // 2. Get Tenant for User
+    const { data: tenant } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('owner_id', user.id)
+        .single();
+
+    if (!tenant) return { success: false, error: 'テナントが見つかりません。' };
+
+    // 3. Verify event belongs to tenant
+    const { data: event } = await supabase
+        .from('events')
+        .select('id')
+        .eq('id', eventId)
+        .eq('tenant_id', tenant.id)
+        .single();
+
+    if (!event) return { success: false, error: 'イベントが見つかりません。' };
+
+    // 4. Update Event
+    // Filter allowed fields to prevent arbitrary updates if passed directly
+    const updates: any = {
+        updated_at: new Date().toISOString()
+    };
+    if (data.name !== undefined) updates.name = data.name;
+    if (data.event_code !== undefined) updates.event_code = data.event_code;
+    if (data.staff_passcode !== undefined) updates.staff_passcode = data.staff_passcode;
+    if (data.is_public_application !== undefined) updates.is_public_application = data.is_public_application;
+    if (data.ticket_config !== undefined) updates.ticket_config = data.ticket_config;
+
+    const { error } = await supabase
+        .from('events')
+        .update(updates)
+        .eq('id', eventId);
+
+    if (error) {
+        console.error('Update Event Error:', error);
+        if (error.code === '23505') {
+            return { success: false, error: 'このイベントコードは既に使用されています。' };
+        }
+        return { success: false, error: 'イベント情報の更新に失敗しました。' };
     }
 
     return { success: true };

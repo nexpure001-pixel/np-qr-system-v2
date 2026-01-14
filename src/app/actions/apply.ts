@@ -24,12 +24,16 @@ export async function submitApplication(formData: FormData) {
         // 2. Resolve Event
         const { data: event, error: eventError } = await supabase
             .from('events')
-            .select('id, tenant_id, name')
+            .select('id, tenant_id, name, is_public_application')
             .eq('event_code', eventCode)
             .single();
 
         if (eventError || !event) {
             return { success: false, error: 'イベントコードが無効です。' };
+        }
+
+        if (!event.is_public_application) {
+            return { success: false, error: 'このイベントは一般公開されていません。招待メールからご参加ください。' };
         }
 
         // 3. Resolve Tenant (For Name/Email settings)

@@ -11,7 +11,7 @@ export default function StaffScanPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [session, setSession] = useState<{ eventName: string, tenantName: string } | null>(null);
   const [scanning, setScanning] = useState(true);
-  const [result, setResult] = useState<{ type: 'success' | 'warning' | 'error', message: string, name?: string } | null>(null);
+  const [result, setResult] = useState<{ type: 'success' | 'warning' | 'error', message: string, name?: string, ticketType?: string, startTime?: string } | null>(null);
 
   // Initialize Session
   useEffect(() => {
@@ -182,6 +182,24 @@ export default function StaffScanPage() {
                   <p className="text-3xl font-bold text-gray-800 font-serif mt-1">{result.name} 様</p>
                 </div>
               )}
+
+              {(result.ticketType || result.startTime) && (
+                <div className="bg-gray-100 rounded-lg p-3 mb-4 text-left space-y-2">
+                  {result.ticketType && (
+                    <div className="flex justify-between">
+                      <span className="text-xs font-bold text-gray-500">券種</span>
+                      <span className="font-bold text-gray-800">{result.ticketType}</span>
+                    </div>
+                  )}
+                  {result.startTime && (
+                    <div className="flex justify-between">
+                      <span className="text-xs font-bold text-gray-500">入場可能時間</span>
+                      <span className="font-bold text-gray-800">{result.startTime}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <p className="text-gray-600 font-bold">{result.message}</p>
             </div>
 

@@ -108,6 +108,10 @@ export async function checkIn(token: string) {
       id,
       status,
       checked_in_at,
+      ticket_type,
+      start_time,
+      re_entry_history,
+      name,
       master_data (
         name
       )
@@ -120,13 +124,20 @@ export async function checkIn(token: string) {
     return { success: false, error: '無効なQRコードです。', errorCode: 'INVALID_TOKEN' };
   }
 
+  // Get Name (Guest or Master Data)
+  const participantName = participation.name || (participation.master_data as any)?.name || '未登録';
+
   // 3. Check if Already Checked In
   if (participation.status === 'checked_in') {
     return {
       success: false,
       error: '既にチェックイン済みです。',
       errorCode: 'ALREADY_CHECKED_IN',
-      participant: { name: (participation.master_data as any)?.name }
+      participant: {
+        name: participantName,
+        ticketType: participation.ticket_type,
+        startTime: participation.start_time
+      }
     };
   }
 
@@ -147,6 +158,10 @@ export async function checkIn(token: string) {
   return {
     success: true,
     message: 'チェックイン完了',
-    participant: { name: (participation.master_data as any)?.name }
+    participant: {
+      name: participantName,
+      ticketType: participation.ticket_type,
+      startTime: participation.start_time
+    }
   };
 }

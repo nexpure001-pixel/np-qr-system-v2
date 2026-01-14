@@ -1,4 +1,4 @@
-export async function parseCSV(file: File): Promise<{ employee_id: string; name: string }[]> {
+export async function parseCSV(file: File): Promise<Record<string, string>[]> {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = async (event) => {
@@ -38,25 +38,21 @@ export async function parseCSV(file: File): Promise<{ employee_id: string; name:
                 return result;
             };
 
-            const results: { employee_id: string; name: string }[] = [];
-            const headers = splitCSV(lines[0]).map(h => h.toLowerCase());
-
-            // Index finding logic
-            const idIndex = headers.findIndex(h => h.includes('id') || h.includes('社員番号') || h.includes('番号'));
-            const nameIndex = headers.findIndex(h => h.includes('name') || h.includes('氏名') || h.includes('名前') || h.includes('名まえ'));
-
-            if (idIndex === -1 || nameIndex === -1) {
-                reject(new Error('CSVの1行目（ヘッダー）に「ID」と「名前」の両方が含まれている必要があります。'));
-                return;
-            }
+            const headers = splitCSV(lines[0]).map(h => h.replace(/^"|"$/g, '').trim());
+            const results: Record<string, string>[] = [];
 
             for (let i = 1; i < lines.length; i++) {
                 const cols = splitCSV(lines[i]);
-                const id = cols[idIndex]?.replace(/^"|"$/g, '');
-                const name = cols[nameIndex]?.replace(/^"|"$/g, '');
+                const row: Record<string, string> = {};
 
-                if (id && name) {
-                    results.push({ employee_id: id, name: name });
+                // Map columns to headers
+                headers.forEach((header, index) => {
+                    row[header] = cols[index]?.replace(/^"|"$/g, '') || '';
+                });
+
+                // Only add if at least one column has content
+                if (Object.values(row).some(v => v)) {
+                    results.push(row);
                 }
             }
             resolve(results);

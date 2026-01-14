@@ -50,6 +50,12 @@ export default function AdminDashboard() {
                 </h1>
                 <div className="flex gap-3">
                     <Link
+                        href="/admin/tickets/import"
+                        className="px-4 py-2 bg-white border border-border rounded-lg text-sm font-bold hover:bg-secondary transition-colors"
+                    >
+                        チケット取り込み
+                    </Link>
+                    <Link
                         href="/admin/master"
                         className="px-4 py-2 bg-white border border-border rounded-lg text-sm font-bold hover:bg-secondary transition-colors"
                     >

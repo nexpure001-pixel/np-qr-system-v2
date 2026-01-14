@@ -3,9 +3,9 @@
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
-import { createEvent, getEvents, deleteEvent } from "@/app/actions/settings";
+import { createEvent, getEvents, deleteEvent, updateEvent } from "@/app/actions/settings";
 import { useEffect, useState } from "react";
-import { Plus, List, Loader2, Copy, Check, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, List, Loader2, Copy, Check, Trash2, AlertTriangle, Settings, X, Save } from "lucide-react";
 
 export default function EventSettingsPage() {
     const [events, setEvents] = useState<any[]>([]);
@@ -15,6 +15,11 @@ export default function EventSettingsPage() {
     const [error, setError] = useState<string | null>(null);
     const [deleteModal, setDeleteModal] = useState<{ show: boolean, event: any | null }>({ show: false, event: null });
     const [deleting, setDeleting] = useState(false);
+
+    // Edit Modal State
+    const [editModal, setEditModal] = useState<{ show: boolean, event: any | null }>({ show: false, event: null });
+    const [editingTicketRules, setEditingTicketRules] = useState<any[]>([]);
+    const [saving, setSaving] = useState(false);
 
     const fetchEvents = () => {
         getEvents().then(data => {
@@ -45,6 +50,56 @@ export default function EventSettingsPage() {
             setError(result.error || '作成に失敗しました。');
         }
         setSubmitting(false);
+    };
+
+    const handleEditClick = (event: any) => {
+        setEditingTicketRules(event.ticket_config || []);
+        setEditModal({ show: true, event: { ...event } });
+    };
+
+    const handleUpdate = async () => {
+        if (!editModal.event) return;
+
+        setSaving(true);
+        const result = await updateEvent(editModal.event.id, {
+            ...editModal.event,
+            ticket_config: editingTicketRules
+        });
+
+        if (result.success) {
+            alert('イベント情報を更新しました。');
+            setEditModal({ show: false, event: null });
+            fetchEvents();
+        } else {
+            alert('更新に失敗しました: ' + result.error);
+        }
+        setSaving(false);
+    };
+
+    const handleAddRule = () => {
+        setEditingTicketRules([...editingTicketRules, {
+            id: crypto.randomUUID(),
+            name: '',
+            keywords: [],
+            startTime: ''
+        }]);
+    };
+
+    const handleRemoveRule = (index: number) => {
+        const newRules = [...editingTicketRules];
+        newRules.splice(index, 1);
+        setEditingTicketRules(newRules);
+    };
+
+    const handleRuleChange = (index: number, field: string, value: any) => {
+        const newRules = [...editingTicketRules];
+        if (field === 'keywords') {
+            // Split by comma and trim
+            newRules[index][field] = value.split(',').map((k: string) => k.trim()).filter((k: string) => k);
+        } else {
+            newRules[index][field] = value;
+        }
+        setEditingTicketRules(newRules);
     };
 
     const handleDeleteClick = (event: any) => {
@@ -144,6 +199,23 @@ export default function EventSettingsPage() {
                                 placeholder="例: 9999"
                                 required
                             />
+                        </div>
+
+                        <div className="flex items-center gap-2 p-4 bg-muted/20 rounded-lg border border-border/50">
+                            <input
+                                type="checkbox"
+                                name="is_public_application"
+                                id="is_public_application"
+                                defaultChecked
+                                className="w-5 h-5 text-primary rounded border-gray-300 focus:ring-primary"
+                            />
+                            <label htmlFor="is_public_application" className="cursor-pointer select-none">
+                                <span className="block font-bold">公開申し込みページを有効にする</span>
+                                <span className="text-sm text-foreground/60">
+                                    有効にすると、誰でもURLから申し込みが可能になります。
+                                    <br />無効（OFF）の場合は、管理画面からのCSVインポートのみで参加者を登録します（招待制）。
+                                </span>
+                            </label>
                         </div>
 
                         {error && <p className="text-red-500 font-bold text-sm">{error}</p>}
@@ -258,17 +330,169 @@ export default function EventSettingsPage() {
                                                 >
                                                     <Copy className="w-3 h-3" />
                                                 </Button>
+                                                {/* Edit Modal */}
+                                                {editModal.show && editModal.event && (
+                                                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+                                                        <div className="bg-white rounded-xl max-w-2xl w-full shadow-2xl my-8">
+                                                            <div className="flex items-center justify-between p-6 border-b border-border">
+                                                                <h2 className="text-xl font-bold flex items-center gap-2">
+                                                                    <Settings className="w-5 h-5 text-foreground/60" />
+                                                                    イベント設定変更
+                                                                </h2>
+                                                                <button
+                                                                    onClick={() => setEditModal({ show: false, event: null })}
+                                                                    className="text-foreground/40 hover:text-foreground/80"
+                                                                >
+                                                                    <X className="w-6 h-6" />
+                                                                </button>
+                                                            </div>
+
+                                                            <div className="p-6 space-y-8 max-h-[80vh] overflow-y-auto">
+                                                                {/* Basic Info */}
+                                                                <section className="space-y-4">
+                                                                    <h3 className="font-bold border-b pb-2">基本情報</h3>
+                                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                        <Input
+                                                                            label="イベント名"
+                                                                            value={editModal.event.name}
+                                                                            onChange={(e) => setEditModal({ ...editModal, event: { ...editModal.event, name: e.target.value } })}
+                                                                        />
+                                                                        <Input
+                                                                            label="イベントコード"
+                                                                            value={editModal.event.event_code}
+                                                                            onChange={(e) => setEditModal({ ...editModal, event: { ...editModal.event, event_code: e.target.value } })}
+                                                                        />
+                                                                        <Input
+                                                                            label="スタッフパスコード"
+                                                                            value={editModal.event.staff_passcode}
+                                                                            onChange={(e) => setEditModal({ ...editModal, event: { ...editModal.event, staff_passcode: e.target.value } })}
+                                                                        />
+                                                                    </div>
+
+                                                                    <div className="flex items-center gap-2 p-3 bg-muted/20 rounded-lg border border-border/50">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            id="edit_is_public"
+                                                                            checked={editModal.event.is_public_application}
+                                                                            onChange={(e) => setEditModal({ ...editModal, event: { ...editModal.event, is_public_application: e.target.checked } })}
+                                                                            className="w-5 h-5 text-primary rounded border-gray-300 focus:ring-primary"
+                                                                        />
+                                                                        <label htmlFor="edit_is_public" className="cursor-pointer select-none">
+                                                                            <span className="block font-bold">公開申し込みページを有効にする</span>
+                                                                        </label>
+                                                                    </div>
+                                                                </section>
+
+                                                                {/* Ticket Rules */}
+                                                                <section className="space-y-4">
+                                                                    <div className="flex items-center justify-between border-b pb-2">
+                                                                        <h3 className="font-bold">チケット変換ルール (CSVインポート用)</h3>
+                                                                        <Button size="sm" variant="secondary" onClick={handleAddRule} className="text-xs">
+                                                                            <Plus className="w-3 h-3 mr-1" />
+                                                                            ルール追加
+                                                                        </Button>
+                                                                    </div>
+                                                                    <p className="text-sm text-foreground/60">
+                                                                        CSVの「金額」や「商品名」を、システム上の「券種」や「入場時間」に紐付けます。<br />
+                                                                        キーワードはカンマ(,)区切りで複数設定できます。
+                                                                    </p>
+
+                                                                    {editingTicketRules.length === 0 ? (
+                                                                        <div className="text-center py-6 bg-muted/10 rounded-lg border border-dashed border-foreground/20 text-foreground/40 text-sm">
+                                                                            ルールが設定されていません。
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="space-y-4">
+                                                                            {editingTicketRules.map((rule, idx) => (
+                                                                                <div key={rule.id} className="p-4 bg-muted/10 rounded-lg border border-border relative group">
+                                                                                    <button
+                                                                                        onClick={() => handleRemoveRule(idx)}
+                                                                                        className="absolute top-2 right-2 text-foreground/30 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                                    >
+                                                                                        <X className="w-4 h-4" />
+                                                                                    </button>
+
+                                                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                                                                                        <div>
+                                                                                            <label className="text-xs font-bold text-foreground/60 block mb-1">券種名 (Ticket Type)</label>
+                                                                                            <input
+                                                                                                value={rule.name}
+                                                                                                onChange={(e) => handleRuleChange(idx, 'name', e.target.value)}
+                                                                                                className="w-full text-sm p-2 rounded border border-border"
+                                                                                                placeholder="例: PriorityPass"
+                                                                                            />
+                                                                                        </div>
+                                                                                        <div>
+                                                                                            <label className="text-xs font-bold text-foreground/60 block mb-1">入場可能時間 (Start Time)</label>
+                                                                                            <input
+                                                                                                value={rule.startTime}
+                                                                                                onChange={(e) => handleRuleChange(idx, 'startTime', e.target.value)}
+                                                                                                className="w-full text-sm p-2 rounded border border-border"
+                                                                                                placeholder="例: 18:30-19:00"
+                                                                                            />
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <label className="text-xs font-bold text-foreground/60 block mb-1">
+                                                                                            紐付けキーワード (カンマ区切り)
+                                                                                        </label>
+                                                                                        <input
+                                                                                            value={rule.keywords.join(', ')}
+                                                                                            onChange={(e) => handleRuleChange(idx, 'keywords', e.target.value)}
+                                                                                            className="w-full text-sm p-2 rounded border border-border bg-white"
+                                                                                            placeholder="例: 15400, 8800, VIP"
+                                                                                        />
+                                                                                    </div>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </section>
+                                                            </div>
+
+                                                            <div className="p-6 border-t border-border bg-muted/10 flex justify-end gap-3 rounded-b-xl">
+                                                                <Button
+                                                                    variant="secondary"
+                                                                    onClick={() => setEditModal({ show: false, event: null })}
+                                                                    disabled={saving}
+                                                                >
+                                                                    キャンセル
+                                                                </Button>
+                                                                <Button
+                                                                    onClick={handleUpdate}
+                                                                    disabled={saving}
+                                                                    className="min-w-[120px]"
+                                                                >
+                                                                    {saving ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                                                                    保存する
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-center">
-                                            <Button
-                                                variant="secondary"
-                                                size="sm"
-                                                onClick={() => handleDeleteClick(event)}
-                                                className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </Button>
+                                            <div className="flex gap-2 justify-center">
+                                                <Button
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    onClick={() => handleEditClick(event)}
+                                                    className="text-foreground/70 hover:bg-muted"
+                                                >
+                                                    <Settings className="w-4 h-4 mr-1" />
+                                                    設定
+                                                </Button>
+                                                <Button
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    onClick={() => handleDeleteClick(event)}
+                                                    className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </Button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -324,6 +548,147 @@ export default function EventSettingsPage() {
                                 className="flex-1 bg-red-600 hover:bg-red-700 text-white"
                             >
                                 {deleting ? '削除中...' : '削除する'}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Modal */}
+            {editModal.show && editModal.event && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+                    <div className="bg-white rounded-xl max-w-2xl w-full shadow-2xl my-8">
+                        <div className="flex items-center justify-between p-6 border-b border-border">
+                            <h2 className="text-xl font-bold flex items-center gap-2">
+                                <Settings className="w-5 h-5 text-foreground/60" />
+                                イベント設定変更
+                            </h2>
+                            <button
+                                onClick={() => setEditModal({ show: false, event: null })}
+                                className="text-foreground/40 hover:text-foreground/80"
+                            >
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-8 max-h-[80vh] overflow-y-auto">
+                            {/* Basic Info */}
+                            <section className="space-y-4">
+                                <h3 className="font-bold border-b pb-2">基本情報</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <Input
+                                        label="イベント名"
+                                        value={editModal.event.name}
+                                        onChange={(e) => setEditModal({ ...editModal, event: { ...editModal.event, name: e.target.value } })}
+                                    />
+                                    <Input
+                                        label="イベントコード"
+                                        value={editModal.event.event_code}
+                                        onChange={(e) => setEditModal({ ...editModal, event: { ...editModal.event, event_code: e.target.value } })}
+                                    />
+                                    <Input
+                                        label="スタッフパスコード"
+                                        value={editModal.event.staff_passcode}
+                                        onChange={(e) => setEditModal({ ...editModal, event: { ...editModal.event, staff_passcode: e.target.value } })}
+                                    />
+                                </div>
+
+                                <div className="flex items-center gap-2 p-3 bg-muted/20 rounded-lg border border-border/50">
+                                    <input
+                                        type="checkbox"
+                                        id="edit_is_public"
+                                        checked={editModal.event.is_public_application}
+                                        onChange={(e) => setEditModal({ ...editModal, event: { ...editModal.event, is_public_application: e.target.checked } })}
+                                        className="w-5 h-5 text-primary rounded border-gray-300 focus:ring-primary"
+                                    />
+                                    <label htmlFor="edit_is_public" className="cursor-pointer select-none">
+                                        <span className="block font-bold">公開申し込みページを有効にする</span>
+                                    </label>
+                                </div>
+                            </section>
+
+                            {/* Ticket Rules */}
+                            <section className="space-y-4">
+                                <div className="flex items-center justify-between border-b pb-2">
+                                    <h3 className="font-bold">チケット変換ルール (CSVインポート用)</h3>
+                                    <Button size="sm" variant="secondary" onClick={handleAddRule} className="text-xs">
+                                        <Plus className="w-3 h-3 mr-1" />
+                                        ルール追加
+                                    </Button>
+                                </div>
+                                <p className="text-sm text-foreground/60">
+                                    CSVの「金額」や「商品名」を、システム上の「券種」や「入場時間」に紐付けます。<br />
+                                    キーワードはカンマ(,)区切りで複数設定できます。
+                                </p>
+
+                                {editingTicketRules.length === 0 ? (
+                                    <div className="text-center py-6 bg-muted/10 rounded-lg border border-dashed border-foreground/20 text-foreground/40 text-sm">
+                                        ルールが設定されていません。
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {editingTicketRules.map((rule, idx) => (
+                                            <div key={rule.id} className="p-4 bg-muted/10 rounded-lg border border-border relative group">
+                                                <button
+                                                    onClick={() => handleRemoveRule(idx)}
+                                                    className="absolute top-2 right-2 text-foreground/30 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                                                    <div>
+                                                        <label className="text-xs font-bold text-foreground/60 block mb-1">券種名 (Ticket Type)</label>
+                                                        <input
+                                                            value={rule.name}
+                                                            onChange={(e) => handleRuleChange(idx, 'name', e.target.value)}
+                                                            className="w-full text-sm p-2 rounded border border-border"
+                                                            placeholder="例: PriorityPass"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs font-bold text-foreground/60 block mb-1">入場可能時間 (Start Time)</label>
+                                                        <input
+                                                            value={rule.startTime}
+                                                            onChange={(e) => handleRuleChange(idx, 'startTime', e.target.value)}
+                                                            className="w-full text-sm p-2 rounded border border-border"
+                                                            placeholder="例: 18:30-19:00"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs font-bold text-foreground/60 block mb-1">
+                                                        紐付けキーワード (カンマ区切り)
+                                                    </label>
+                                                    <input
+                                                        value={rule.keywords.join(', ')}
+                                                        onChange={(e) => handleRuleChange(idx, 'keywords', e.target.value)}
+                                                        className="w-full text-sm p-2 rounded border border-border bg-white"
+                                                        placeholder="例: 15400, 8800, VIP"
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </section>
+                        </div>
+
+                        <div className="p-6 border-t border-border bg-muted/10 flex justify-end gap-3 rounded-b-xl">
+                            <Button
+                                variant="secondary"
+                                onClick={() => setEditModal({ show: false, event: null })}
+                                disabled={saving}
+                            >
+                                キャンセル
+                            </Button>
+                            <Button
+                                onClick={handleUpdate}
+                                disabled={saving}
+                                className="min-w-[120px]"
+                            >
+                                {saving ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                                保存する
                             </Button>
                         </div>
                     </div>
