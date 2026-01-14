@@ -1,3 +1,4 @@
+/** Heartbeat: 2026-01-14 13:32 to force Vercel build **/
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 
