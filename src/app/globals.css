@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+:root {
+  /* Bright Theme Palette */
+  --background: #F8FAFC; /* Slate 50 - Very light gray/white */
+  --foreground: #1E293B; /* Slate 800 - High contrast text (No pure black) */
+  --primary: #0EA5E9; /* Sky 500 - Bright and friendly blue */
+  --primary-foreground: #FFFFFF;
+  --secondary: #F1F5F9; /* Slate 100 - Soft secondary background */
+  --border: #E2E8F0; /* Slate 200 */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-border: var(--border);
+
+  /* Font Configuration: Heisei Mincho (平成明朝体) as requested */
+  --font-sans: "Heisei Mincho Std", "HeiseiMincho-W3", "游明朝", "Yu Mincho", "Hiragino Mincho ProN", "HGS明朝E", "MS PMincho", serif;
+  --font-serif: "Heisei Mincho Std", "HeiseiMincho-W3", "游明朝", "Yu Mincho", "Hiragino Mincho ProN", "HGS明朝E", "MS PMincho", serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans); /* Enforce Mincho globally */
+  -webkit-font-smoothing: antialiased;
+}
