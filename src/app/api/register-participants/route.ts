@@ -71,21 +71,29 @@ export async function POST(request: NextRequest) {
             .insert(participationsToInsert);
 
         if (insertError) {
-            console.error('Insert Error Detail:', {
-                message: insertError.message,
-                details: insertError.details,
-                hint: insertError.hint,
-                code: insertError.code
-            });
+            console.error('Insert Error Detail:', insertError);
+
+            // Helpful error mapping
+            let userFriendlyError = insertError.message;
+            if (insertError.message.includes('email_sent')) {
+                userFriendlyError = 'データベースの更新が必要です（email_sentカラムがありません）。Supabaseでmigration_v7を実行してください。';
+            } else if (insertError.message.includes('inviter')) {
+                userFriendlyError = 'データベースの構造が一致しません（inviterカラムの確認が必要です）。';
+            }
+
             return NextResponse.json({
                 success: false,
-                error: `登録に失敗しました: ${insertError.message}`
+                error: userFriendlyError,
+                debug: insertError
             }, { status: 500 });
         }
 
         return NextResponse.json({ success: true, count: participants.length });
-    } catch (error) {
+    } catch (error: any) {
         console.error('API Error:', error);
-        return NextResponse.json({ success: false, error: 'サーバーエラーが発生しました。' }, { status: 500 });
+        return NextResponse.json({
+            success: false,
+            error: `サーバーエラーが発生しました: ${error.message || '不明なエラー'}`
+        }, { status: 500 });
     }
 }
