@@ -224,7 +224,7 @@ export default function StaffScanPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="会員IDを手動入力..."
-              className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl text-sm font-bold focus:outline-none focus:border-blue-500 transition-all placeholder:text-slate-300 pr-12 shadow-sm"
+              className="w-full px-5 py-3.5 bg-white border-2 border-slate-200 rounded-2xl text-sm font-black text-slate-900 focus:outline-none focus:border-blue-600 transition-all placeholder:text-slate-400 pr-12 shadow-sm"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && searchQuery) {
                   handleScan(searchQuery);
@@ -245,7 +245,7 @@ export default function StaffScanPage() {
               <Search className="w-4 h-4" />
             </button>
           </div>
-          <p className="text-[10px] text-slate-300 font-bold text-center mt-3 uppercase tracking-tighter">
+          <p className="text-[10px] text-slate-500 font-black text-center mt-3 uppercase tracking-tighter">
             会員IDによる手動チェックインが可能です
           </p>
         </div>
