@@ -607,71 +607,73 @@ export default function EventSettingsPage() {
                                 </div>
                             </section>
 
-                            {/* Ticket Rules */}
-                            <section className="space-y-4">
-                                <div className="flex items-center justify-between border-b pb-2">
-                                    <h3 className="font-bold">チケット変換ルール (CSVインポート用)</h3>
-                                    <Button size="sm" variant="secondary" onClick={handleAddRule} className="text-xs">
-                                        <Plus className="w-3 h-3 mr-1" />
-                                        ルール追加
-                                    </Button>
-                                </div>
-                                <p className="text-sm text-foreground/60">
-                                    CSVの「金額」や「商品名」を、システム上の「券種」や「入場時間」に紐付けます。<br />
-                                    キーワードはカンマ(,)区切りで複数設定できます。
-                                </p>
-
-                                {editingTicketRules.length === 0 ? (
-                                    <div className="text-center py-6 bg-muted/10 rounded-lg border border-dashed border-foreground/20 text-foreground/40 text-sm">
-                                        ルールが設定されていません。
+                            {/* Ticket Rules - Only show if Private Event (Not Public) */}
+                            {!editModal.event.is_public_application && (
+                                <section className="space-y-4">
+                                    <div className="flex items-center justify-between border-b pb-2">
+                                        <h3 className="font-bold">チケット変換ルール (CSVインポート用)</h3>
+                                        <Button size="sm" variant="secondary" onClick={handleAddRule} className="text-xs">
+                                            <Plus className="w-3 h-3 mr-1" />
+                                            ルール追加
+                                        </Button>
                                     </div>
-                                ) : (
-                                    <div className="space-y-4">
-                                        {editingTicketRules.map((rule, idx) => (
-                                            <div key={rule.id} className="p-4 bg-muted/10 rounded-lg border border-border relative group">
-                                                <button
-                                                    onClick={() => handleRemoveRule(idx)}
-                                                    className="absolute top-2 right-2 text-foreground/30 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                >
-                                                    <X className="w-4 h-4" />
-                                                </button>
+                                    <p className="text-sm text-foreground/60">
+                                        CSVの「金額」や「商品名」を、システム上の「券種」や「入場時間」に紐付けます。<br />
+                                        キーワードはカンマ(,)区切りで複数設定できます。
+                                    </p>
 
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                                                    <div>
-                                                        <label className="text-xs font-bold text-foreground/60 block mb-1">券種名 (Ticket Type)</label>
-                                                        <input
-                                                            value={rule.name}
-                                                            onChange={(e) => handleRuleChange(idx, 'name', e.target.value)}
-                                                            className="w-full text-sm p-2 rounded border border-border"
-                                                            placeholder="例: PriorityPass"
-                                                        />
+                                    {editingTicketRules.length === 0 ? (
+                                        <div className="text-center py-6 bg-muted/10 rounded-lg border border-dashed border-foreground/20 text-foreground/40 text-sm">
+                                            ルールが設定されていません。
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            {editingTicketRules.map((rule, idx) => (
+                                                <div key={rule.id} className="p-4 bg-muted/10 rounded-lg border border-border relative group">
+                                                    <button
+                                                        onClick={() => handleRemoveRule(idx)}
+                                                        className="absolute top-2 right-2 text-foreground/30 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                                                        <div>
+                                                            <label className="text-xs font-bold text-foreground/60 block mb-1">券種名 (Ticket Type)</label>
+                                                            <input
+                                                                value={rule.name}
+                                                                onChange={(e) => handleRuleChange(idx, 'name', e.target.value)}
+                                                                className="w-full text-sm p-2 rounded border border-border"
+                                                                placeholder="例: PriorityPass"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-xs font-bold text-foreground/60 block mb-1">入場可能時間 (Start Time)</label>
+                                                            <input
+                                                                value={rule.startTime}
+                                                                onChange={(e) => handleRuleChange(idx, 'startTime', e.target.value)}
+                                                                className="w-full text-sm p-2 rounded border border-border"
+                                                                placeholder="例: 18:30-19:00"
+                                                            />
+                                                        </div>
                                                     </div>
                                                     <div>
-                                                        <label className="text-xs font-bold text-foreground/60 block mb-1">入場可能時間 (Start Time)</label>
+                                                        <label className="text-xs font-bold text-foreground/60 block mb-1">
+                                                            紐付けキーワード (カンマ区切り)
+                                                        </label>
                                                         <input
-                                                            value={rule.startTime}
-                                                            onChange={(e) => handleRuleChange(idx, 'startTime', e.target.value)}
-                                                            className="w-full text-sm p-2 rounded border border-border"
-                                                            placeholder="例: 18:30-19:00"
+                                                            value={rule.keywords.join(', ')}
+                                                            onChange={(e) => handleRuleChange(idx, 'keywords', e.target.value)}
+                                                            className="w-full text-sm p-2 rounded border border-border bg-white"
+                                                            placeholder="例: 15400, 8800, VIP"
                                                         />
                                                     </div>
                                                 </div>
-                                                <div>
-                                                    <label className="text-xs font-bold text-foreground/60 block mb-1">
-                                                        紐付けキーワード (カンマ区切り)
-                                                    </label>
-                                                    <input
-                                                        value={rule.keywords.join(', ')}
-                                                        onChange={(e) => handleRuleChange(idx, 'keywords', e.target.value)}
-                                                        className="w-full text-sm p-2 rounded border border-border bg-white"
-                                                        placeholder="例: 15400, 8800, VIP"
-                                                    />
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </section>
+                                            ))}
+                                        </div>
+                                    )}
+                                </section>
+                            )}
                         </div>
 
                         <div className="p-6 border-t border-border bg-muted/10 flex justify-end gap-3 rounded-b-xl">

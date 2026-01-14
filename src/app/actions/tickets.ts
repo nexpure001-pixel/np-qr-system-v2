@@ -56,6 +56,7 @@ export async function importTickets(eventId: string, tickets: any[]) {
             ticket_type: ticket.ticket_type || 'Standard',
             start_time: ticket.start_time || '',
             note: ticket.product_name || '',
+            master_data_id: ticket.master_data_id || null, // Link to master data if matched
             invited_by: user.id // Admin imported
         };
         participationData.push(participation);

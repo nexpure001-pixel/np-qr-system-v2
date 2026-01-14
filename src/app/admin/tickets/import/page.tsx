@@ -5,11 +5,13 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { getEvents } from "@/app/actions/settings";
 import { importTickets } from "@/app/actions/tickets";
+import { getMasterData } from "@/app/actions/master";
 import { parseCSV } from "@/utils/csvParser";
-import { Loader2, Upload, FileSpreadsheet, ArrowRight, CheckCircle, AlertCircle } from 'lucide-react';
+import { Loader2, Upload, FileSpreadsheet, ArrowRight, CheckCircle, AlertCircle, UserCheck, User } from 'lucide-react';
 
 export default function TicketImportPage() {
     const [events, setEvents] = useState<any[]>([]);
+    const [masterData, setMasterData] = useState<any[]>([]);
     const [selectedEventId, setSelectedEventId] = useState<string>('');
     const [file, setFile] = useState<File | null>(null);
     const [csvData, setCsvData] = useState<Record<string, string>[]>([]);
@@ -25,12 +27,18 @@ export default function TicketImportPage() {
 
     // Preview
     const [previewData, setPreviewData] = useState<any[]>([]);
+    // Selection state for checkboxes
+    const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+
     const [step, setStep] = useState<1 | 2 | 3>(1); // 1: Select/Upload, 2: Map, 3: Preview/Confirm
     const [importing, setImporting] = useState(false);
     const [result, setResult] = useState<{ success: boolean, message: string } | null>(null);
 
     useEffect(() => {
         getEvents().then(setEvents);
+        getMasterData().then(res => {
+            if (!res.error) setMasterData(res.data);
+        });
     }, []);
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -83,12 +91,22 @@ export default function TicketImportPage() {
         // Generate Preview Data
         const mapped = csvData.map((row, index) => {
             const keywordValue = mappings.keyword ? row[mappings.keyword] : '';
+            const email = row[mappings.email]?.trim() || '';
+            const name = row[mappings.name]?.trim() || '';
 
-            // Match Logic
+            // Match Logic: Check against Master Data
+            const matchedMaster = masterData.find(m =>
+                (m.employee_id && row[mappings.orderId] === m.employee_id) || // ID Match if mapped
+                (m.name === name) // Name Match
+                // Email match requires email in master data which we might not have in basic master_data table, usually master_data is id+name?
+                // Actually master_data table structure: id, tenant_id, employee_id, name, created_at. No email?
+                // Wait, if master data doesn't have email, we can't match by email.
+                // We match by Name or Employee ID (if orderID is used for ID).
+            );
+
+            // Ticket Rule Match
             let matchedRule = null;
             if (keywordValue) {
-                // Find rule where keywords array contains the value (partial or exact? usually exact or includes)
-                // Let's doing partial match for flexibility: if row value contains keyword
                 matchedRule = rules.find((r: any) =>
                     r.keywords.some((k: string) => keywordValue.includes(k))
                 );
@@ -96,27 +114,61 @@ export default function TicketImportPage() {
 
             // Fallback or Default
             const ticketType = matchedRule ? matchedRule.name : '一般 (Standard)';
-            const startTime = matchedRule ? matchedRule.start_time || matchedRule.startTime : ''; // Handle both naming cases if any
+            const startTime = matchedRule ? matchedRule.start_time || matchedRule.startTime : '';
 
             return {
                 _id: index,
-                name: row[mappings.name],
-                email: row[mappings.email],
+                name: name,
+                email: email,
                 order_id: mappings.orderId ? row[mappings.orderId] : '',
-                product_name: keywordValue, // Store raw value for reference
+                product_name: keywordValue,
                 ticket_type: ticketType,
                 start_time: startTime,
-                status: matchedRule ? 'valid' : 'warning' // Warning if no rule matched? No, default is fine.
+                status: matchedMaster ? 'member' : 'guest',
+                master_data: matchedMaster || null,
+                master_data_id: matchedMaster?.id || null,
             };
         });
 
         setPreviewData(mapped);
+        // Select all by default
+        setSelectedRows(new Set(mapped.map(m => m._id)));
         setStep(3);
     };
 
+    const toggleSelectAll = () => {
+        if (selectedRows.size === previewData.length) {
+            setSelectedRows(new Set());
+        } else {
+            setSelectedRows(new Set(previewData.map(m => m._id)));
+        }
+    };
+
+    const toggleRow = (id: number) => {
+        const newSet = new Set(selectedRows);
+        if (newSet.has(id)) {
+            newSet.delete(id);
+        } else {
+            newSet.add(id);
+        }
+        setSelectedRows(newSet);
+    };
+
     const handleImport = async () => {
+        if (selectedRows.size === 0) {
+            alert('送信対象が選択されていません。');
+            return;
+        }
+
+        if (!confirm(`${selectedRows.size}名の参加者にメールを送信しますか？`)) {
+            return;
+        }
+
         setImporting(true);
-        const res = await importTickets(selectedEventId, previewData);
+        // Filter only selected rows
+        const targetData = previewData.filter(d => selectedRows.has(d._id));
+
+        const res = await importTickets(selectedEventId, targetData);
         if (res.success) {
             setResult({ success: true, message: `${res.count}件のチケットを取り込み、招待メールの送信キューに追加しました。` });
             setStep(1);
@@ -150,7 +202,7 @@ export default function TicketImportPage() {
                     チケット一括登録 (CSVインポート)
                 </h1>
                 <p className="text-foreground/70 text-sm mt-1">
-                    ECサイトの注文データなどのCSVを取り込み、自動的にチケットを発行・メール送信します。
+                    ECサイトの注文データなどのCSVを取り込み、名簿と照合してチケットを発行・メール送信します。
                 </p>
             </div>
 
@@ -160,7 +212,7 @@ export default function TicketImportPage() {
                 <ArrowRight className="w-4 h-4" />
                 <span className={step >= 2 ? "text-primary" : ""}>2. データ紐付け</span>
                 <ArrowRight className="w-4 h-4" />
-                <span className={step >= 3 ? "text-primary" : ""}>3. 確認・実行</span>
+                <span className={step >= 3 ? "text-primary" : ""}>3. 照合・送信選択</span>
             </div>
 
             {step === 1 && (
@@ -206,6 +258,7 @@ export default function TicketImportPage() {
                                 <option value="">選択してください</option>
                                 {originalHeaders.map(h => <option key={h} value={h}>{h}</option>)}
                             </select>
+                            <p className="text-xs text-foreground/50 mt-1">※この項目でマスターデータの氏名と照合します</p>
                         </div>
                         <div>
                             <label className="block text-sm font-bold mb-2">メールアドレス (Email) <span className="text-red-500">*</span></label>
@@ -246,7 +299,7 @@ export default function TicketImportPage() {
                     <div className="flex justify-end gap-3 pt-4">
                         <Button variant="secondary" onClick={() => { setStep(1); setFile(null); }}>キャンセル</Button>
                         <Button onClick={handleMappingSubmit}>
-                            プレビューへ進む <ArrowRight className="w-4 h-4 ml-2" />
+                            照合・プレビューへ進む <ArrowRight className="w-4 h-4 ml-2" />
                         </Button>
                     </div>
                 </Card>
@@ -256,16 +309,32 @@ export default function TicketImportPage() {
                 <div className="space-y-6">
                     <Card className="p-6">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-bold">インポートデータ確認 ({previewData.length}件)</h3>
-                            <div className="text-sm text-foreground/60">
-                                以下の内容で登録されます。問題なければ実行してください。
+                            <div>
+                                <h3 className="font-bold">インポートデータ確認 ({previewData.length}件)</h3>
+                                <div className="text-sm text-foreground/60">
+                                    名簿との照合結果です。送信する対象を選択してください。
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4 bg-muted/20 px-4 py-2 rounded-lg">
+                                <div className="text-sm">
+                                    送信対象: <span className="font-bold text-primary text-lg">{selectedRows.size}</span> 件
+                                </div>
                             </div>
                         </div>
 
-                        <div className="overflow-x-auto border rounded-lg max-h-[400px] overflow-y-auto">
-                            <table className="w-full text-sm text-left">
-                                <thead className="bg-muted text-xs uppercase sticky top-0">
+                        <div className="overflow-x-auto border rounded-lg max-h-[500px] overflow-y-auto">
+                            <table className="w-full text-sm text-left relative">
+                                <thead className="bg-muted text-xs uppercase sticky top-0 z-10">
                                     <tr>
+                                        <th className="px-4 py-3 w-10 text-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedRows.size > 0 && selectedRows.size === previewData.length}
+                                                onChange={toggleSelectAll}
+                                                className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                            />
+                                        </th>
+                                        <th className="px-4 py-3">マッチング状況</th>
                                         <th className="px-4 py-3">氏名</th>
                                         <th className="px-4 py-3">メール送信先</th>
                                         <th className="px-4 py-3">判定元データ</th>
@@ -273,9 +342,35 @@ export default function TicketImportPage() {
                                         <th className="px-4 py-3">入場時間</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y">
+                                <tbody className="divide-y bg-white">
                                     {previewData.map((row) => (
-                                        <tr key={row._id} className="hover:bg-muted/10">
+                                        <tr
+                                            key={row._id}
+                                            className={`hover:bg-muted/10 transition-colors ${selectedRows.has(row._id) ? 'bg-primary/5' : ''}`}
+                                            onClick={() => toggleRow(row._id)}
+                                        >
+                                            <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedRows.has(row._id)}
+                                                    onChange={() => toggleRow(row._id)}
+                                                    className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                                                />
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {row.status === 'member' ? (
+                                                    <div className="flex items-center gap-2 text-green-600 font-bold bg-green-50 px-2 py-1 rounded-md w-fit">
+                                                        <UserCheck className="w-4 h-4" />
+                                                        <span>会員一致</span>
+                                                        <span className="text-xs opacity-70 font-mono ml-1">({row.master_data?.employee_id})</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-2 text-gray-500 bg-gray-100 px-2 py-1 rounded-md w-fit">
+                                                        <User className="w-4 h-4" />
+                                                        <span>ゲスト</span>
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td className="px-4 py-3 font-bold">{row.name}</td>
                                             <td className="px-4 py-3 text-foreground/70">{row.email}</td>
                                             <td className="px-4 py-3 text-xs text-foreground/50 truncate max-w-[150px]">{row.product_name}</td>
@@ -292,13 +387,17 @@ export default function TicketImportPage() {
                         </div>
                     </Card>
 
-                    <div className="flex justify-end gap-3">
+                    <div className="flex justify-end gap-3 pt-4">
                         <Button variant="secondary" onClick={() => setStep(2)} disabled={importing}>
                             戻る
                         </Button>
-                        <Button onClick={handleImport} disabled={importing} className="bg-primary hover:bg-primary/90 text-white min-w-[200px]">
+                        <Button
+                            onClick={handleImport}
+                            disabled={importing || selectedRows.size === 0}
+                            className="bg-primary hover:bg-primary/90 text-white min-w-[250px] shadow-lg"
+                        >
                             {importing ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
-                            インポート実行 (メール送信)
+                            {selectedRows.size}件を登録して送信
                         </Button>
                     </div>
                 </div>
