@@ -1,435 +1,53 @@
 'use client';
 
-import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Users, CheckCircle, Clock, Calendar, Loader2, Trash2 } from "lucide-react";
-import Link from "next/link";
-import { useEffect, useState, useCallback } from "react";
-import { getEvents, getEventStats } from "@/app/actions/dashboard";
-import { isSuperAdmin } from "@/app/actions/super-admin";
-import { useRouter } from "next/navigation";
+import Link from 'next/link';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ArrowRight, Plus } from 'lucide-react';
+import { getEvents, getEventStats } from '@/app/actions/dashboard';
+import { isSuperAdmin } from '@/app/actions/super-admin';
+import ParticipantList from '@/components/admin/ParticipantList';
 
-interface EventRecord {
-    id: string;
-    name: string;
-    event_code: string;
-    email_template?: string;
-    created_at: string;
+type EventRecord = { id: string; name: string; event_code: string; created_at: string };
+type Stats = NonNullable<Awaited<ReturnType<typeof getEventStats>>>;
+
+function Dashboard() {
+  const router = useRouter();
+  const query = useSearchParams();
+  const view = query.get('view') || 'overview';
+  const [events, setEvents] = useState<EventRecord[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState('');
+  const [stats, setStats] = useState<Stats | null>(null);
+  const eventId = events.some(e => e.id === query.get('event')) ? query.get('event')! : events[0]?.id || '';
+  const event = events.find(e => e.id === eventId);
+  useEffect(() => {
+    isSuperAdmin().then(superAdmin => { if (superAdmin) router.replace('/admin/super/tenants'); }).catch(() => {});
+    getEvents().then(setEvents).catch(() => setError('イベントを取得できませんでした。ページを再読み込みしてください。')).finally(() => setLoaded(true));
+  }, [router]);
+  useEffect(() => {
+    let active = true;
+    if (eventId) getEventStats(eventId).then(data => { if (active) setStats(data); }).catch(() => { if (active) setError('集計を取得できませんでした。ページを再読み込みしてください。'); });
+    return () => { active = false; };
+  }, [eventId]);
+  const href = (nextView: string) => `/admin?view=${nextView}${eventId ? `&event=${encodeURIComponent(eventId)}` : ''}`;
+  const title = view === 'participants' ? '参加者・チケット' : view === 'mail' ? 'メール配信' : view === 'history' ? '過去のイベント' : 'イベントの準備を、ひとつずつ。';
+  const metric = stats?.eventId === eventId ? stats : null;
+  return <>
+    <div className="admin-heading"><div><div className="admin-eyebrow">EVENT MANAGEMENT</div><h1>{title}</h1><p>{view === 'overview' ? '参加者の登録からQRチケットの配信まで、この画面で。' : view === 'history' ? 'イベントごとの参加者・配信状況・入場記録を確認できます。' : '対象イベントを確認してから、操作を進めてください。'}</p></div><Link className="admin-button" href={view === 'participants' ? `/admin/tickets/import?event=${eventId}` : '/admin/settings#create-event-form'}><Plus size={14} />{view === 'participants' ? 'CSVで参加者を登録' : '新しいイベント'}</Link></div>
+    {error && <p role="alert" className="admin-panel text-red-700">{error}</p>}
+    {!loaded ? <p role="status" className="admin-panel">イベントを読み込んでいます…</p> : !events.length ? <div className="admin-panel"><h2>最初のイベントを準備しましょう</h2><p className="admin-note mt-2 mb-4">新しいイベントは参加者が空の状態で始まります。</p><Link className="admin-button primary" href="/admin/settings#create-event-form">イベントを作成する<ArrowRight size={14}/></Link></div> : view === 'history' ? <section className="admin-panel"><div className="admin-panel-head"><div><h2>保存されているイベント</h2><p className="admin-note">新しいイベントを作成しても、これまでのデータは残ります。</p></div></div>{events.map(item => <div key={item.id} className="admin-event-row"><div><h3>{item.name}</h3><p className="admin-note">イベントコード：{item.event_code}</p></div><Link className="admin-button" href={`/admin?view=participants&event=${item.id}`}>参加者・記録を見る<ArrowRight size={14}/></Link></div>)}</section> : <>
+      <section className="admin-panel"><label className="admin-eyebrow" htmlFor="current-event">CURRENT EVENT</label><select id="current-event" className="admin-event-select" value={eventId} onChange={e => router.replace(`/admin?view=${view}&event=${encodeURIComponent(e.target.value)}`)}>{events.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><p className="admin-note">イベントコード：{event?.event_code}</p><p className="admin-note mt-5">まず設定を確認し、参加者の登録とチケットの配信を進めましょう。</p></section>
+      {view === 'overview' ? <>
+        <div className="admin-metrics">{[{label:'登録チケット',value:metric?.total,note:'このイベントの参加チケットを集計'},{label:'メール送信済み',value:metric?.sent,note:'QRチケットを配信済み'},{label:'未送信チケット',value:metric?.unsent,note:'配信前に宛先を確認してください'}].map(item => <div key={item.label} className="admin-metric"><p className="admin-metric-label">{item.label}</p><p className="admin-metric-value">{item.value ?? '—'}<small>件</small></p><p className="admin-metric-note">{item.note}</p></div>)}</div>
+        <section className="admin-panel"><div className="admin-panel-head"><div><h2>配信までの3ステップ</h2><p className="admin-note mt-1">準備の順番に沿って進められます。</p></div></div><div className="admin-steps">{[
+          {title:'イベントを設定',text:<>イベント名・券種と<br/>券種ごとの受付時間を設定。</>,url:'/admin/settings',cta:'設定を確認'},
+          {title:'参加者を登録',text:<>購入者のCSVを読み込み、<br/>照合結果を確認して取り込み。</>,url:`/admin/tickets/import?event=${eventId}`,cta:'参加者を登録'},
+          {title:'QRチケット・メール配信',text:<>配信するチケットの<br/>本文と宛先を確認して送信。</>,url:href('mail'),cta:'配信の準備'},
+        ].map((step,i) => <div className="admin-step" key={step.title}><span className="admin-step-number">{i+1}</span><h3>{step.title}</h3><p>{step.text}</p><Link href={step.url} className={`admin-button ${i === 2 ? 'primary' : ''}`}>{step.cta}<ArrowRight size={13}/></Link></div>)}</div></section>
+        <div className="admin-split"><section className="admin-panel"><h3>データを残して、次のイベントへ</h3><p className="admin-note mt-3">新しいイベントを作ると、参加者が空の状態で始まります。前回の参加者・配信状況・入場記録はイベントごとに残ります。</p><Link className="admin-text-link mt-2" href={href('history')}>過去のイベントを見る<ArrowRight size={12}/></Link></section><section className="admin-panel"><h3>当日の受付</h3><div className="admin-info-row"><span>チェックイン済み</span><strong>{metric?.checkedIn ?? '—'} 件</strong></div><div className="admin-info-row"><span>未チェックイン</span><strong>{metric?.pending ?? '—'} 件</strong></div><Link className="admin-text-link" href="/admin/staff">スタッフ・受付端末を管理<ArrowRight size={12}/></Link></section></div>
+      </> : <><div className="flex flex-wrap items-center justify-between gap-3 mb-4"><p className="admin-note">{view === 'mail' ? '未送信の参加者にQRチケットを配信します。' : '登録済みの参加者とチケットの状態を確認できます。'}</p><Link className="admin-text-link" href={view === 'mail' ? '/admin/settings/smtp' : href('mail')}>{view === 'mail' ? 'メール送信設定' : 'メール配信へ'}<ArrowRight size={12}/></Link></div><ParticipantList key={eventId + view} eventId={eventId} mode={view}/></>}
+    </>}
+  </>;
 }
-
-interface EventStats {
-    eventName: string;
-    eventCode: string;
-    total: number;
-    checkedIn: number;
-    pending: number;
-}
-
-export default function AdminDashboard() {
-    const router = useRouter();
-    const [events, setEvents] = useState<EventRecord[]>([]);
-    const [selectedEventId, setSelectedEventId] = useState<string>('');
-    const [stats, setStats] = useState<EventStats | null>(null);
-    const [loading, setLoading] = useState(true);
-
-    // Check if super admin and redirect
-    useEffect(() => {
-        isSuperAdmin().then(isAdmin => {
-            if (isAdmin) {
-                router.push('/admin/super/tenants');
-            }
-        });
-    }, [router]);
-
-    useEffect(() => {
-        getEvents().then(data => {
-            setEvents(data);
-            if (data.length > 0) {
-                setSelectedEventId(data[0].id);
-            }
-            setLoading(false);
-        });
-    }, []);
-
-    useEffect(() => {
-        if (selectedEventId) {
-            getEventStats(selectedEventId).then(data => {
-                setStats(data);
-            });
-        }
-    }, [selectedEventId]);
-
-    return (
-        <div className="space-y-8">
-            <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold text-foreground">
-                    イベントダッシュボード
-                </h1>
-                <div className="flex gap-3">
-                    <Link
-                        href="/admin/tickets/import"
-                        className="px-4 py-2 bg-white border border-border rounded-lg text-sm font-bold hover:bg-secondary transition-colors"
-                    >
-                        チケット取り込み
-                    </Link>
-                    <Link
-                        href="/admin/master"
-                        className="px-4 py-2 bg-white border border-border rounded-lg text-sm font-bold hover:bg-secondary transition-colors"
-                    >
-                        名簿管理
-                    </Link>
-                    <Link
-                        href="/admin/settings"
-                        className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors"
-                    >
-                        イベント設定
-                    </Link>
-                </div>
-            </div>
-
-            {/* Event Selector */}
-            {loading ? (
-                <div className="text-center py-8">読み込み中...</div>
-            ) : events.length === 0 ? (
-                <Card className="p-8 text-center">
-                    <p className="text-foreground/60 mb-4">イベントがまだ作成されていません。</p>
-                    <Link
-                        href="/admin/settings"
-                        className="inline-block px-6 py-3 bg-primary text-white rounded-lg font-bold hover:bg-primary/90 transition-colors"
-                    >
-                        最初のイベントを作成する
-                    </Link>
-                </Card>
-            ) : (
-                <>
-                    <Card className="p-6">
-                        <label className="block text-sm font-bold text-foreground/70 mb-2">
-                            イベント選択
-                        </label>
-                        <select
-                            value={selectedEventId}
-                            onChange={(e) => setSelectedEventId(e.target.value)}
-                            className="w-full md:w-auto px-4 py-3 border border-border rounded-lg font-bold text-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                        >
-                            {events.map(event => (
-                                <option key={event.id} value={event.id}>
-                                    {event.name} ({event.event_code})
-                                </option>
-                            ))}
-                        </select>
-                    </Card>
-
-                    {/* Stats Grid - DEMO DATA */}
-                    {stats && (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <StatsCard
-                                title="総申し込み数"
-                                value={stats.total.toString()}
-                                icon={<Users className="w-6 h-6 text-blue-500" />}
-                                subtext="Total Participants"
-                            />
-                            <StatsCard
-                                title="チェックイン済み"
-                                value={stats.checkedIn.toString()}
-                                icon={<CheckCircle className="w-6 h-6 text-green-500" />}
-                                subtext={stats.total > 0 ? `来場率 ${Math.round((stats.checkedIn / stats.total) * 100)}%` : ''}
-                            />
-                            <StatsCard
-                                title="未チェックイン"
-                                value={stats.pending.toString()}
-                                icon={<Clock className="w-6 h-6 text-orange-500" />}
-                                subtext="Pending Check-in"
-                            />
-                        </div>
-                    )}
-
-                    {/* Event Info */}
-                    {stats && (
-                        <Card className="p-6">
-                            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                                <Calendar className="w-5 h-5 text-primary" />
-                                イベント情報
-                            </h3>
-                            <div className="space-y-2 text-sm">
-                                <div className="flex justify-between">
-                                    <span className="text-foreground/60">イベント名:</span>
-                                    <span className="font-bold">{stats.eventName}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-foreground/60">イベントコード:</span>
-                                    <span className="font-mono font-bold text-primary">{stats.eventCode}</span>
-                                </div>
-                            </div>
-                        </Card>
-                    )}
-
-                    {/* Participant List */}
-                    <ParticipantList eventId={selectedEventId} />
-                </>
-            )}
-        </div>
-    );
-}
-
-function StatsCard({
-    title,
-    value,
-    icon,
-    subtext,
-}: {
-    title: string;
-    value: string;
-    icon: React.ReactNode;
-    subtext?: string;
-}) {
-    return (
-        <Card className="flex flex-col gap-2">
-            <div className="flex items-start justify-between">
-                <span className="text-sm font-bold text-foreground/60">{title}</span>
-                <div className="p-2 bg-white rounded-full shadow-sm">{icon}</div>
-            </div>
-            <div className="text-3xl font-bold tracking-tight">{value}</div>
-            {subtext && (
-                <div className="text-xs font-medium text-foreground/50 mt-1">
-                    {subtext}
-                </div>
-            )}
-        </Card>
-    );
-}
-
-
-interface ParticipantRecord {
-    id: string;
-    name: string;
-    email: string;
-    ticket_type: string;
-    status: string;
-    email_sent: boolean;
-    created_at: string;
-    master_data_id?: string;
-}
-
-function ParticipantList({ eventId }: { eventId: string }) {
-    const [participants, setParticipants] = useState<ParticipantRecord[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [sending, setSending] = useState(false);
-    const [emailTemplate, setEmailTemplate] = useState('');
-    const [savingTemplate, setSavingTemplate] = useState(false);
-
-    const loadParticipants = useCallback(() => {
-        if (!eventId) return;
-
-        setLoading(true);
-        import('@/app/actions/dashboard').then(({ getEventParticipants }) => {
-            getEventParticipants(eventId).then(data => {
-                setParticipants(data);
-                setLoading(false);
-            });
-        });
-
-        // Load current template
-        import('@/app/actions/settings').then(({ getEvents }) => {
-            getEvents().then(events => {
-                const currentEvent = (events as EventRecord[]).find(e => e.id === eventId);
-                if (currentEvent) {
-                    setEmailTemplate(currentEvent.email_template || '');
-                }
-            });
-        });
-    }, [eventId]);
-
-    useEffect(() => {
-        loadParticipants();
-    }, [loadParticipants]);
-
-    const handleSaveTemplate = async () => {
-        setSavingTemplate(true);
-        try {
-            const { updateEvent } = await import('@/app/actions/settings');
-            const res = await updateEvent(eventId, { email_template: emailTemplate });
-            if (res.success) {
-                alert('メールテンプレートを保存しました。');
-            } else {
-                alert('保存に失敗しました: ' + res.error);
-            }
-        } catch (error) {
-            console.error(error);
-            alert('保存中にエラーが発生しました。');
-        } finally {
-            setSavingTemplate(false);
-        }
-    };
-
-    const handleBulkEmailSend = async () => {
-        if (!confirm('未送信の参加者にQRコードメールを一括送信しますか？')) return;
-
-        setSending(true);
-        try {
-            const response = await fetch('/api/send-bulk-emails', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ eventId })
-            });
-
-            const result = await response.json();
-            if (result.success) {
-                alert(`${result.count}名にメールを送信しました。`);
-                loadParticipants(); // Reload to update email_sent status
-            } else {
-                alert(`エラー: ${result.error}`);
-            }
-        } catch (error) {
-            console.error(error);
-            alert('メール送信中にエラーが発生しました。');
-        } finally {
-            setSending(false);
-        }
-    };
-
-    const handleDeleteParticipant = async (id: string, name: string) => {
-        if (!confirm(`${name} 様の参加情報を削除しますか？\n（この操作は取り消せません）`)) return;
-
-        try {
-            const { deleteParticipation } = await import('@/app/actions/dashboard');
-            const res = await deleteParticipation(id);
-            if (res.success) {
-                loadParticipants();
-            } else {
-                alert('削除に失敗しました: ' + res.error);
-            }
-        } catch (error) {
-            console.error(error);
-            alert('削除中にエラーが発生しました。');
-        }
-    };
-
-    if (loading) {
-        return (
-            <Card className="p-6">
-                <p className="text-center text-foreground/60">読み込み中...</p>
-            </Card>
-        );
-    }
-
-    if (participants.length === 0) {
-        return (
-            <Card className="p-6">
-                <h3 className="font-bold text-lg mb-4">参加者リスト</h3>
-                <p className="text-center text-foreground/60">まだ参加者がいません</p>
-            </Card>
-        );
-    }
-
-    const unsentCount = participants.filter(p => !p.email_sent).length;
-
-    return (
-        <Card className="p-6">
-            <div className="flex flex-col md:flex-row md:items-end gap-4 mb-6 p-4 bg-blue-50/50 border border-blue-100 rounded-xl">
-                <div className="flex-1">
-                    <label className="block text-sm font-bold text-blue-900 mb-2 flex items-center gap-2">
-                        <span>📧 メール本文への追記（イベント別）</span>
-                        <span className="text-[10px] font-normal bg-blue-100 px-2 py-0.5 rounded text-blue-700">通知メールの下部に追加されます</span>
-                    </label>
-                    <textarea
-                        value={emailTemplate}
-                        onChange={(e) => setEmailTemplate(e.target.value)}
-                        placeholder="例: 会場はこちらです https://... お気をつけてお越しください。"
-                        className="w-full h-24 p-3 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white placeholder:text-blue-300"
-                    />
-                </div>
-                <div className="flex flex-col gap-2">
-                    <Button
-                        onClick={handleSaveTemplate}
-                        disabled={savingTemplate}
-                        className="bg-blue-100 text-blue-700 hover:bg-blue-200 border-none text-xs h-9"
-                    >
-                        {savingTemplate ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : '本文を保存'}
-                    </Button>
-                    <Button
-                        onClick={handleBulkEmailSend}
-                        disabled={sending || unsentCount === 0}
-                        className="bg-blue-600 hover:bg-blue-700 h-10 font-bold whitespace-nowrap"
-                    >
-                        {sending ? (
-                            <>
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                送信中...
-                            </>
-                        ) : (
-                            <>
-                                📧 メール一括送信 ({unsentCount}名)
-                            </>
-                        )}
-                    </Button>
-                </div>
-            </div>
-
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-lg">参加者リスト ({participants.length}名)</h3>
-            </div>
-            <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                    <thead className="bg-muted/50 text-xs uppercase">
-                        <tr>
-                            <th className="px-4 py-3 text-left">氏名</th>
-                            <th className="px-4 py-3 text-left">メール</th>
-                            <th className="px-4 py-3 text-left">会員区分</th>
-                            <th className="px-4 py-3 text-left">券種</th>
-                            <th className="px-4 py-3 text-left">メール状態</th>
-                            <th className="px-4 py-3 text-left">入場状態</th>
-                            <th className="px-4 py-3 text-right">操作</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                        {participants.map((p) => (
-                            <tr key={p.id} className="hover:bg-muted/10">
-                                <td className="px-4 py-3 font-bold">{p.name}</td>
-                                <td className="px-4 py-3 text-foreground/70">{p.email}</td>
-                                <td className="px-4 py-3">
-                                    {p.master_data_id ? (
-                                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded text-xs font-bold">
-                                            <CheckCircle className="w-3 h-3" />
-                                            会員
-                                        </span>
-                                    ) : (
-                                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">
-                                            <Users className="w-3 h-3" />
-                                            ゲスト
-                                        </span>
-                                    )}
-                                </td>
-                                <td className="px-4 py-3">{p.ticket_type}</td>
-                                <td className="px-4 py-3">
-                                    {p.email_sent ? (
-                                        <span className="text-xs text-green-600 font-bold">送信済み</span>
-                                    ) : (
-                                        <span className="text-xs text-foreground/40 font-bold">未送信</span>
-                                    )}
-                                </td>
-                                <td className="px-4 py-3">
-                                    <span className={`px-2 py-1 rounded text-xs font-bold ${p.status === 'checked_in' ? 'bg-green-100 text-green-700' :
-                                        p.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                                            'bg-gray-100 text-gray-700'
-                                        }`}>
-                                        {p.status === 'checked_in' ? '入場済み' :
-                                            p.status === 'pending' ? '未入場' : p.status}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                    <button
-                                        onClick={() => handleDeleteParticipant(p.id, p.name || '未登録')}
-                                        className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                                        title="削除"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </Card>
-    );
-}
+export default function AdminDashboard() { return <Suspense fallback={<p>読み込み中…</p>}><Dashboard/></Suspense>; }
