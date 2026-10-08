@@ -14,6 +14,7 @@ export default function LoginPage() {
     const handleSubmit = async (formData: FormData) => {
         setLoading(true);
         setError(null);
+        formData.set('next', new URLSearchParams(window.location.search).get('next') === 'account' ? 'account' : '');
         const res = await login(formData);
         // Note: If success, `login` throws redirect, so we won't reach here usually.
         // If we do, it's an error object.

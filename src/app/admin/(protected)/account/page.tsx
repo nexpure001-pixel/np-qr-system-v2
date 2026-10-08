@@ -4,7 +4,8 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { User, Building2, Key, Mail, Shield } from "lucide-react";
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { getAccountInfo, updatePassword } from "@/app/actions/account";
 
 interface AccountInfo {
@@ -27,12 +28,26 @@ export default function AccountPage() {
     const [updating, setUpdating] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
-    useEffect(() => {
-        getAccountInfo().then(data => {
-            setAccountInfo(data);
+    const [loadState, setLoadState] = useState<'login_required' | 'unavailable' | null>(null);
+    const loadAccount = useCallback(async () => {
+        setLoading(true);
+        setLoadState(null);
+        try {
+            const result = await getAccountInfo();
+            if (result.status === 'ready') {
+                setAccountInfo(result.account);
+            } else {
+                setAccountInfo(null);
+                setLoadState(result.status);
+            }
+        } catch {
+            setAccountInfo(null);
+            setLoadState('unavailable');
+        } finally {
             setLoading(false);
-        });
+        }
     }, []);
+    useEffect(() => { void loadAccount(); }, [loadAccount]);
 
     const handlePasswordUpdate = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -67,7 +82,16 @@ export default function AccountPage() {
     }
 
     if (!accountInfo) {
-        return <div className="text-center py-8">アカウント情報を取得できませんでした。</div>;
+        return <Card className="max-w-xl mx-auto p-6 space-y-4" role="status">
+            <h1 className="text-xl font-bold">{loadState === 'login_required' ? '管理者ログインが必要です' : 'アカウント情報を読み込めませんでした'}</h1>
+            <p className="text-sm text-foreground/70">{loadState === 'login_required'
+                ? 'ログイン状態を確認できませんでした。このシステムの管理者アカウントでログインしてください。'
+                : '通信が一時的に不安定な可能性があります。少し待ってから再試行してください。'}</p>
+            <div className="flex flex-wrap gap-3">
+                {loadState === 'login_required' ? <Link href="/admin/login?next=account" className="admin-button primary">管理者ログインへ</Link> : <Button onClick={loadAccount}>再試行</Button>}
+                <Link href="/admin" className="admin-button">ダッシュボードへ戻る</Link>
+            </div>
+        </Card>;
     }
 
     return (
@@ -89,16 +113,16 @@ export default function AccountPage() {
                     ログイン情報
                 </h2>
                 <div className="space-y-4">
-                    <div className="flex justify-between items-center py-3 border-b border-border">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 py-3 border-b border-border">
                         <span className="text-foreground/60">メールアドレス</span>
-                        <span className="font-mono font-bold">{accountInfo.email}</span>
+                        <span className="font-mono font-bold break-all">{accountInfo.email}</span>
                     </div>
-                    <div className="flex justify-between items-center py-3 border-b border-border">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 py-3 border-b border-border">
                         <span className="text-foreground/60">アカウント作成日</span>
                         <span className="font-bold">{new Date(accountInfo.createdAt).toLocaleString('ja-JP')}</span>
                     </div>
                     {accountInfo.lastSignIn && (
-                        <div className="flex justify-between items-center py-3 border-b border-border">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 py-3 border-b border-border">
                             <span className="text-foreground/60">最終ログイン</span>
                             <span className="font-bold">{new Date(accountInfo.lastSignIn).toLocaleString('ja-JP')}</span>
                         </div>
@@ -114,15 +138,15 @@ export default function AccountPage() {
                         企業情報
                     </h2>
                     <div className="space-y-4">
-                        <div className="flex justify-between items-center py-3 border-b border-border">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 py-3 border-b border-border">
                             <span className="text-foreground/60">企業名</span>
                             <span className="font-bold">{accountInfo.tenant.name}</span>
                         </div>
-                        <div className="flex justify-between items-center py-3 border-b border-border">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 py-3 border-b border-border">
                             <span className="text-foreground/60">企業コード</span>
                             <span className="font-mono font-bold text-primary">{accountInfo.tenant.company_code}</span>
                         </div>
-                        <div className="flex justify-between items-center py-3 border-b border-border">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 py-3 border-b border-border">
                             <span className="text-foreground/60">登録日</span>
                             <span className="font-bold">{new Date(accountInfo.tenant.created_at).toLocaleDateString('ja-JP')}</span>
                         </div>

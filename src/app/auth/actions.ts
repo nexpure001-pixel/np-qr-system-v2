@@ -23,7 +23,7 @@ export async function login(formData: FormData) {
         return { error: 'ログインに失敗しました。メールアドレスかパスワードが間違っています。' };
     }
 
-    return redirect('/admin');
+    return redirect(formData.get('next') === 'account' ? '/admin/account' : '/admin');
 }
 
 export async function signOut() {
