@@ -155,7 +155,7 @@ export async function updateSMTPSettings(formData: FormData) {
 }
 
 // Delete event and all related data
-export async function deleteEvent(eventId: string) {
+export async function deleteEvent(eventId: string, confirmationName: string) {
     const supabase = await createClient();
 
     // 1. Get User
@@ -174,30 +174,34 @@ export async function deleteEvent(eventId: string) {
     // 3. Verify event belongs to tenant
     const { data: event } = await supabase
         .from('events')
-        .select('id')
+        .select('id, name')
         .eq('id', eventId)
         .eq('tenant_id', tenant.id)
         .single();
 
     if (!event) return { success: false, error: 'イベントが見つかりません。' };
 
-    // 4. Delete related participations (cascade will handle this, but explicit for clarity)
-    await supabase
-        .from('participations')
-        .delete()
-        .eq('event_id', eventId);
+    if (typeof confirmationName !== 'string' || confirmationName !== event.name) {
+        return { success: false, error: 'イベント名が一致しません。対象を確認してください。' };
+    }
 
-    // 5. Delete event (this will cascade delete participations if foreign key is set)
-    const { error: deleteError } = await supabase
+    // A single DELETE is atomic, including database FK cascades. Never delete
+    // participants first: an event deletion failure must leave them intact.
+    const { data: deleted, error: deleteError } = await supabase
         .from('events')
         .delete()
-        .eq('id', eventId);
+        .eq('id', eventId)
+        .eq('tenant_id', tenant.id)
+        .eq('name', confirmationName)
+        .select('id')
+        .maybeSingle();
 
     if (deleteError) {
         console.error('Delete Event Error:', deleteError);
         return { success: false, error: 'イベント削除に失敗しました。' };
     }
 
+    if (!deleted) return { success: false, error: 'イベントが変更または削除されています。画面を更新してください。' };
     return { success: true };
 }
 
