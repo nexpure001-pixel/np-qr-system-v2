@@ -1,5 +1,6 @@
 -- Additive migration. Existing participants/events are never deleted.
 -- Activate reception events in /admin/staff after applying this migration.
+begin;
 create table public.staff_event_access (
   event_id uuid primary key references public.events(id) on delete cascade,
   tenant_id uuid not null references public.tenants(id) on delete cascade,
@@ -127,3 +128,4 @@ end $$;
 
 revoke all on function public.staff_redeem_invite(text,text), public.staff_set_event_access(uuid,uuid,boolean,boolean), public.staff_switch_event(text,uuid), public.staff_check_in(text,uuid,text) from public, anon, authenticated;
 grant execute on function public.staff_redeem_invite(text,text), public.staff_set_event_access(uuid,uuid,boolean,boolean), public.staff_switch_event(text,uuid), public.staff_check_in(text,uuid,text) to service_role;
+commit;
