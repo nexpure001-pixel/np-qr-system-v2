@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { getEvents } from "@/app/actions/settings";
@@ -33,6 +34,7 @@ interface MatchedRow {
 }
 
 export default function TicketImportPage() {
+    const router = useRouter();
     const [events, setEvents] = useState<Event[]>([]);
     const [masterData, setMasterData] = useState<MasterData[]>([]);
     const [selectedEventId, setSelectedEventId] = useState<string>('');
@@ -46,7 +48,11 @@ export default function TicketImportPage() {
     const [result, setResult] = useState<{ success: boolean, message: string } | null>(null);
 
     useEffect(() => {
-        getEvents().then(setEvents);
+        getEvents().then(data => {
+            setEvents(data);
+            const requested = new URLSearchParams(window.location.search).get('event');
+            if (data.some(event => event.id === requested)) setSelectedEventId(requested!);
+        });
         getMasterData().then(res => {
             if (!res.error) setMasterData(res.data);
         });
@@ -214,7 +220,7 @@ export default function TicketImportPage() {
                 <label className="block text-sm font-bold text-foreground/70 mb-2">対象イベント</label>
                 <select
                     value={selectedEventId}
-                    onChange={(e) => setSelectedEventId(e.target.value)}
+                    onChange={(e) => { setSelectedEventId(e.target.value); router.replace(`/admin/tickets/import?event=${encodeURIComponent(e.target.value)}`, { scroll: false }); }}
                     className="w-full md:w-auto px-4 py-3 border border-border rounded-lg font-bold focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                     <option value="">イベントを選択</option>
@@ -233,7 +239,7 @@ export default function TicketImportPage() {
                     <h2 className="font-bold">CSVアップロード</h2>
                 </div>
                 <p className="text-sm text-foreground/60 mb-4">
-                    推奨形式: **ID、氏名、値段** の3列（ヘッダーあり）
+                    推奨形式：ID・氏名・値段の3列（ヘッダーあり）
                 </p>
                 <input
                     type="file"

@@ -61,33 +61,20 @@ export async function getEventStats(eventId: string) {
         return null;
     }
 
-    // 3. Get participation statistics
-    const { data: participations } = await supabase
-        .from('participations')
-        .select('status')
-        .eq('event_id', eventId);
-
-    if (!participations) {
-        return {
-            eventName: event.name,
-            eventCode: event.event_code,
-            total: 0,
-            checkedIn: 0,
-            pending: 0
-        };
+    // Exact counts are independent of the API's row limit.
+    const [totalResult, checkedResult, pendingResult, sentResult, unsentResult] = await Promise.all([
+        supabase.from('participations').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
+        supabase.from('participations').select('id', { count: 'exact', head: true }).eq('event_id', eventId).eq('status', 'checked_in'),
+        supabase.from('participations').select('id', { count: 'exact', head: true }).eq('event_id', eventId).eq('status', 'pending'),
+        supabase.from('participations').select('id', { count: 'exact', head: true }).eq('event_id', eventId).eq('email_sent', true),
+        supabase.from('participations').select('id', { count: 'exact', head: true }).eq('event_id', eventId).or('email_sent.eq.false,email_sent.is.null'),
+    ]);
+    if ([totalResult, checkedResult, pendingResult, sentResult, unsentResult].some(result => result.error)) {
+        throw new Error('集計を取得できませんでした。');
     }
-
-    const total = participations.length;
-    const checkedIn = participations.filter(p => p.status === 'checked_in').length;
-    const pending = participations.filter(p => p.status === 'pending').length;
-
-    return {
-        eventName: event.name,
-        eventCode: event.event_code,
-        total,
-        checkedIn,
-        pending
-    };
+    return { eventId, eventName: event.name, eventCode: event.event_code,
+        total: totalResult.count ?? 0, checkedIn: checkedResult.count ?? 0,
+        pending: pendingResult.count ?? 0, sent: sentResult.count ?? 0, unsent: unsentResult.count ?? 0 };
 }
 
 // Get tenant info (for company code display)
