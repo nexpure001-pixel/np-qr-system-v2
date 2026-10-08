@@ -3,8 +3,8 @@
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
-import { staffLogin } from "@/app/actions/staff";
-import { useState } from "react";
+import { staffLogin, getStaffSession } from "@/app/actions/staff";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { QrCode, Building2, Ticket, KeyRound, Loader2 } from "lucide-react";
 
@@ -12,6 +12,8 @@ export default function StaffLoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => { getStaffSession().then(session => { if (session) router.replace('/staff/scan'); }).catch(() => {}); }, [router]);
 
   const handleSubmit = async (formData: FormData) => {
     setLoading(true);
@@ -36,7 +38,7 @@ export default function StaffLoginPage() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">スタッフ・受付ログイン</h1>
           <p className="text-sm text-gray-500 mt-2">
-            イベント情報を入力して、<br />QRコード読み取りを開始してください。
+            登録済みの端末はそのまま受付へ進めます。<br />初めての方は管理者の招待QRを読み込んでください。
           </p>
         </div>
 

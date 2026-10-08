@@ -57,6 +57,7 @@ export default function AdminLayout({
                                 <BarChart className="w-4 h-4" />
                                 ダッシュボード
                             </Link>
+                            <Link href="/admin/staff" className="inline-flex min-h-11 items-center hover:text-primary">スタッフ・受付端末</Link>
                             <Link href="/admin/master" className="text-foreground/70 hover:text-primary inline-flex min-h-11 items-center transition-colors">
                                 名簿管理(Master)
                             </Link>

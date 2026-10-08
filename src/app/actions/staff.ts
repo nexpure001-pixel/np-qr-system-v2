@@ -1,234 +1,272 @@
-'use server';
-
-import { createClient } from "@/utils/supabase/server";
+"use server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { createAdminClient } from "@/utils/supabase/admin";
+import {
+  DEVICE_COOKIE,
+  DEVICE_SECONDS,
+  hashToken,
+  newToken,
+  validId,
+  validToken,
+} from "@/lib/staff/tokens";
 
-// Staff Session Types
+export type StaffEvent = { id: string; name: string; recommended: boolean };
 export type StaffSession = {
-  eventId: string;
+  eventId: string | null;
   eventName: string;
   tenantName: string;
+  deviceName: string;
+  events: StaffEvent[];
 };
 
-const SESSION_COOKIE_NAME = 'staff_session';
-
-// Staff Login
-export async function staffLogin(formData: FormData) {
-  const supabase = await createClient();
-  const cookieStore = await cookies();
-
-  const companyCode = formData.get('company_code') as string;
-  const eventCode = formData.get('event_code') as string;
-  const passcode = formData.get('passcode') as string;
-
-  if (!companyCode || !eventCode || !passcode) {
-    return { success: false, error: '全ての項目を入力してください。' };
-  }
-
-  // 1. Find Tenant by Company Code
-  const { data: tenant } = await supabase
-    .from('tenants')
-    .select('id, name')
-    .eq('company_code', companyCode)
+async function deviceContext() {
+  const token = (await cookies()).get(DEVICE_COOKIE)?.value;
+  if (!validToken(token)) return null;
+  const db = createAdminClient();
+  const hash = hashToken(token);
+  const { data: device, error } = await db
+    .from("staff_devices")
+    .select(
+      "id,tenant_id,label,current_event_id,allowed_event_id,expires_at,revoked_at",
+    )
+    .eq("token_hash", hash)
     .single();
-
-  if (!tenant) {
-    return { success: false, error: '企業コードが見つかりません。' };
-  }
-
-  // 2. Find Event by Tenant ID + Event Code
-  const { data: event } = await supabase
-    .from('events')
-    .select('id, name, staff_passcode')
-    .eq('tenant_id', tenant.id)
-    .eq('event_code', eventCode)
-    .single();
-
-  if (!event) {
-    return { success: false, error: 'イベントコードが見つかりません。' };
-  }
-
-  // 3. Verify Passcode
-  if (event.staff_passcode !== passcode) {
-    return { success: false, error: 'パスコードが間違っています。' };
-  }
-
-  // 4. Create Session (Simple JSON in Cookie for MVP)
-  const sessionData: StaffSession = {
-    eventId: event.id,
-    eventName: event.name,
-    tenantName: tenant.name
-  };
-
-  cookieStore.set(SESSION_COOKIE_NAME, JSON.stringify(sessionData), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 60 * 60 * 24, // 24 hours
-    path: '/',
-  });
-
-  return { success: true };
-}
-
-// Staff Logout
-export async function staffLogout() {
-  const cookieStore = await cookies();
-  cookieStore.delete(SESSION_COOKIE_NAME);
-  redirect('/staff');
-}
-
-// Get Session logic
-export async function getStaffSession(): Promise<StaffSession | null> {
-  const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME);
-  if (!sessionCookie) return null;
-
-  try {
-    return JSON.parse(sessionCookie.value);
-  } catch {
+  if (error) throw new Error("端末情報を取得できません。");
+  if (
+    !device ||
+    device.revoked_at ||
+    Date.parse(device.expires_at) <= Date.now()
+  )
     return null;
-  }
+  return { db, device, hash };
+}
+async function saveDeviceCookie(token: string) {
+  const store = await cookies();
+  store.set(DEVICE_COOKIE, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: DEVICE_SECONDS,
+    path: "/",
+  });
+  store.delete("staff_session");
 }
 
-// Check-in Function (QR Scan)
-export async function checkIn(token: string) {
-  const supabase = await createClient();
-
-  // 1. Get Staff Session
-  const session = await getStaffSession();
-  if (!session) {
-    return { success: false, error: 'セッションが無効です。再ログインしてください。' };
-  }
-
-  // 2. Extract token/id from URL if necessary
-  let actualToken = token;
-  if (token.includes('/checkin/')) {
-    // legacy support: extract ID from URL
-    actualToken = token.split('/checkin/').pop() || token;
-  }
-
-  // 2. Find Participation by Token, ID, or Member ID
-  let { data: participation, error: findError } = await supabase
-    .from('participations')
-    .select(`
-      id,
-      status,
-      checked_in_at,
-      ticket_type,
-      start_time,
-      re_entry_history,
-      name,
-      event_id,
-      events (
-        name
-      ),
-      master_data (
-        name,
-        employee_id
-      )
-    `)
-    .or(`checkin_token.eq.${actualToken},id.eq.${actualToken}`)
-    .single();
-
-  // If not found by token/ID, try searching by Member ID (company_code or master_data.employee_id) within the current event
-  if (findError || !participation) {
-    // 1. First, search by company_code in participations (covers both members and guests)
-    const { data: companyParts, error: companyError } = await supabase
-      .from('participations')
-      .select(`
-        id, status, checked_in_at, ticket_type, start_time, re_entry_history, name, event_id,
-        events ( name ),
-        master_data ( name, employee_id )
-      `)
-      .eq('event_id', session.eventId)
-      .eq('company_code', actualToken)
-      .order('status', { ascending: false }); // Prioritize 'pending' over 'checked_in' if lucky, but we'll filter
-
-    if (!companyError && companyParts && companyParts.length > 0) {
-      // Pick the first 'pending' one, or just the first if all checked in
-      participation = companyParts.find(p => p.status === 'pending') || companyParts[0];
-      findError = null;
-    } else {
-      // 2. Fallback: Search by employee_id via master_data join (if not captured in company_code)
-      const { data: memberParts, error: memberError } = await supabase
-        .from('participations')
-        .select(`
-          id, status, checked_in_at, ticket_type, start_time, re_entry_history, name, event_id,
-          events ( name ),
-          master_data!inner ( name, employee_id )
-        `)
-        .eq('event_id', session.eventId)
-        .eq('master_data.employee_id', actualToken);
-
-      if (!memberError && memberParts && memberParts.length > 0) {
-        participation = memberParts.find(p => p.status === 'pending') || memberParts[0];
-        findError = null;
-      }
-    }
-  }
-
-  if (findError || !participation) {
-    console.warn(`Check-in: Token not found [${actualToken}]`);
-    return { success: false, error: '該当する参加者が見つかりません。', errorCode: 'NOT_FOUND' };
-  }
-
-  // Check Event Mismatch
-  if (participation.event_id !== session.eventId) {
-    const eventName = (participation.events as unknown as { name: string })?.name || '別のイベント';
+export async function redeemStaffInvite(token: string) {
+  if (!validToken(token))
+    return { success: false, error: "招待リンクが正しくありません。" };
+  const deviceToken = newToken();
+  try {
+    const { error } = await createAdminClient().rpc("staff_redeem_invite", {
+      p_hash: hashToken(token),
+      p_device_hash: hashToken(deviceToken),
+    });
+    if (error)
+      return {
+        success: false,
+        error:
+          "この招待は使用済み・期限切れ・無効化済みです。管理者に新しい招待を依頼してください。",
+      };
+    await saveDeviceCookie(deviceToken);
+    return { success: true };
+  } catch {
     return {
       success: false,
-      error: `このチケットは「${eventName}」のものです。現在のイベント（${session.eventName}）では使用できません。`,
-      errorCode: 'EVENT_MISMATCH'
+      error: "端末を登録できません。通信とサーバー設定を確認してください。",
     };
   }
+}
 
-  // Get Name (Guest or Master Data)
-  const masterData = participation.master_data as unknown as { name: string } | null;
-  const participantName = participation.name || (Array.isArray(masterData) ? masterData[0]?.name : masterData?.name) || '未登録';
-
-  // 3. Handle Entry Type
-  const isFirstEntry = !participation.checked_in_at;
-  const entryType = isFirstEntry ? 'first' : 're_entry';
-
-  // 4. Update Status and History
-  const now = new Date().toISOString();
-  const updates: {
-    status: string;
-    updated_at: string;
-    checked_in_at?: string;
-    re_entry_history?: string[];
-  } = {
-    status: 'checked_in',
-    updated_at: now
-  };
-
-  if (isFirstEntry) {
-    updates.checked_in_at = now;
-  } else {
-    // Append to re-entry history
-    const history = Array.isArray(participation.re_entry_history) ? participation.re_entry_history : [];
-    updates.re_entry_history = [...history, now];
+// Existing code/passcode login is retained, scoped to its single event.
+export async function staffLogin(formData: FormData) {
+  const company = String(formData.get("company_code") || "").trim();
+  const code = String(formData.get("event_code") || "").trim();
+  const passcode = String(formData.get("passcode") || "");
+  if (!company || !code || !passcode)
+    return { success: false, error: "全ての項目を入力してください。" };
+  try {
+    const db = createAdminClient();
+    const { data: tenant } = await db
+      .from("tenants")
+      .select("id")
+      .eq("company_code", company)
+      .single();
+    if (!tenant)
+      return { success: false, error: "ログイン情報を確認してください。" };
+    const { data: event } = await db
+      .from("events")
+      .select("id,staff_passcode")
+      .eq("tenant_id", tenant.id)
+      .eq("event_code", code)
+      .single();
+    if (!event || event.staff_passcode !== passcode)
+      return { success: false, error: "ログイン情報を確認してください。" };
+    const { data: access } = await db
+      .from("staff_event_access")
+      .select("enabled")
+      .eq("event_id", event.id)
+      .single();
+    if (!access?.enabled)
+      return {
+        success: false,
+        error:
+          "このイベントは受付を開始していません。管理者に確認してください。",
+      };
+    const token = newToken();
+    const { error } = await db
+      .from("staff_devices")
+      .insert({
+        tenant_id: tenant.id,
+        token_hash: hashToken(token),
+        label: "コードでログインした端末",
+        current_event_id: event.id,
+        allowed_event_id: event.id,
+        expires_at: new Date(Date.now() + DEVICE_SECONDS * 1000).toISOString(),
+      });
+    if (error) return { success: false, error: "端末登録に失敗しました。" };
+    await saveDeviceCookie(token);
+    return { success: true };
+  } catch {
+    return {
+      success: false,
+      error: "ログインできません。通信とサーバー設定を確認してください。",
+    };
   }
+}
 
-  const { error: updateError } = await supabase
-    .from('participations')
-    .update(updates)
-    .eq('id', participation.id);
-
-  if (updateError) {
-    console.error('Check-in Update Error:', updateError);
-    return { success: false, error: 'チェックインの更新に失敗しました。' };
-  }
-
-  return {
-    success: true,
-    message: isFirstEntry ? 'チェックイン完了' : '途中入場（再入場）',
-    participant: {
-      name: participantName,
-      ticketType: participation.ticket_type,
-      startTime: participation.start_time,
-      entryType: entryType as 'first' | 're_entry'
+export async function staffLogout() {
+  const token = (await cookies()).get(DEVICE_COOKIE)?.value;
+  if (validToken(token)) {
+    try {
+      await createAdminClient()
+        .from("staff_devices")
+        .update({ revoked_at: new Date().toISOString() })
+        .eq("token_hash", hashToken(token));
+    } catch {
+      /* Cookie removal still logs this browser out. */
     }
+  }
+  const store = await cookies();
+  store.delete(DEVICE_COOKIE);
+  store.delete("staff_session");
+  redirect("/staff");
+}
+
+export async function getStaffSession(): Promise<StaffSession | null> {
+  const context = await deviceContext();
+  if (!context) return null;
+  const { db, device } = context;
+  const [
+    { data: tenant, error: tenantError },
+    { data: access, error: accessError },
+    { data: events, error: eventError },
+  ] = await Promise.all([
+    db.from("tenants").select("name").eq("id", device.tenant_id).single(),
+    db
+      .from("staff_event_access")
+      .select("event_id,recommended")
+      .eq("tenant_id", device.tenant_id)
+      .eq("enabled", true),
+    db
+      .from("events")
+      .select("id,name")
+      .eq("tenant_id", device.tenant_id)
+      .order("created_at", { ascending: false }),
+  ]);
+  if (tenantError || accessError || eventError)
+    throw new Error("イベント情報を取得できません。");
+  const available: StaffEvent[] = (events || [])
+    .filter(
+      (e) =>
+        access?.some((a) => a.event_id === e.id) &&
+        (!device.allowed_event_id || device.allowed_event_id === e.id),
+    )
+    .map((e) => ({
+      ...e,
+      recommended: !!access?.find((a) => a.event_id === e.id)?.recommended,
+    }));
+  const current = available.find((e) => e.id === device.current_event_id);
+  return {
+    eventId: current?.id || null,
+    eventName: current?.name || "受付イベントを選んでください",
+    tenantName: tenant?.name || "",
+    deviceName: device.label,
+    events: available,
   };
+}
+
+export async function switchStaffEvent(eventId: string) {
+  if (!validId(eventId))
+    return { success: false, error: "イベントを選択してください。" };
+  try {
+    const context = await deviceContext();
+    if (!context)
+      return {
+        success: false,
+        error: "端末登録が無効です。管理者に招待を依頼してください。",
+      };
+    const { data, error } = await context.db.rpc("staff_switch_event", {
+      p_hash: context.hash,
+      p_event: eventId,
+    });
+    if (error || !data)
+      return {
+        success: false,
+        error: "このイベントは受付できません。受付状態を確認してください。",
+      };
+    return { success: true, session: await getStaffSession() };
+  } catch {
+    return {
+      success: false,
+      error: "切り替えに失敗しました。もう一度お試しください。",
+    };
+  }
+}
+
+type CheckInResponse = {
+  success: boolean;
+  error?: string;
+  message?: string;
+  participant?: {
+    name: string;
+    ticketType?: string;
+    startTime?: string;
+    entryType: "first" | "re_entry";
+  };
+};
+export async function checkIn(
+  token: string,
+  expectedEventId: string,
+): Promise<CheckInResponse> {
+  if (
+    typeof token !== "string" ||
+    !token.trim() ||
+    token.length > 2048 ||
+    !validId(expectedEventId)
+  )
+    return {
+      success: false,
+      error: "受付イベントとQRコードを確認してください。",
+    };
+  const raw = (await cookies()).get(DEVICE_COOKIE)?.value;
+  if (!validToken(raw))
+    return {
+      success: false,
+      error: "端末登録が無効です。管理者に招待を依頼してください。",
+    };
+  let actualToken = token.trim();
+  if (actualToken.includes("/checkin/"))
+    actualToken = actualToken.split("/checkin/").pop()?.split(/[?#]/)[0] || "";
+  const { data, error } = await createAdminClient().rpc("staff_check_in", {
+    p_hash: hashToken(raw),
+    p_event: expectedEventId,
+    p_token: actualToken,
+  });
+  if (error)
+    return {
+      success: false,
+      error: "受付を更新できませんでした。管理者に確認してください。",
+    };
+  return data as CheckInResponse;
 }
