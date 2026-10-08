@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { getMasterData, addMasterDataRecord, importMasterDataCSV, deleteMasterData } from "@/app/actions/master";
+import { validateMasterRows } from "@/utils/masterData";
 import { parseCSV } from "@/utils/csvParser";
 import { useEffect, useState, useRef } from "react";
 import { Loader2, Plus, Trash2, Upload, AlertCircle, User } from 'lucide-react';
@@ -28,6 +29,9 @@ export default function MasterDataPage() {
     // CSV State
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isImporting, setIsImporting] = useState(false);
+    const [isAdding, setIsAdding] = useState(false);
+    const [notice, setNotice] = useState('');
+    const [actionError, setActionError] = useState('');
 
     const [error, setError] = useState<string | null>(null);
     const [deleting, setDeleting] = useState<string | null>(null);
@@ -43,19 +47,23 @@ export default function MasterDataPage() {
                 setError(null);
             }
             setLoading(false);
-        });
+        }).catch(() => { setError('名簿を読み込めませんでした。ページを再読み込みしてください。'); setLoading(false); });
     }, [refreshKey]);
 
     // Handle Manual Add
     const handleAdd = async (formData: FormData) => {
-        setLoading(true);
-        const result = await addMasterDataRecord(formData);
-        if (!result.success) {
-            alert(result.error);
-        } else {
-            setRefreshKey(k => k + 1); // Refresh list
-            (document.getElementById('add-form') as HTMLFormElement)?.reset();
-        }
+        if (isAdding) return;
+        setIsAdding(true); setActionError(''); setNotice('');
+        try {
+            const result = await addMasterDataRecord(formData);
+            if (!result.success) setActionError(result.error || '追加できませんでした。');
+            else {
+                setNotice('新しい会員を1名追加しました。');
+                setCurrentPage(1); setRefreshKey(k => k + 1);
+                (document.getElementById('add-form') as HTMLFormElement)?.reset();
+            }
+        } catch { setActionError('結果を確認できませんでした。名簿を再読み込みして確認してください。'); }
+        finally { setIsAdding(false); }
     };
 
     // Handle Delete
@@ -79,15 +87,13 @@ export default function MasterDataPage() {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        if (!confirm(`${file.name} を会社全体の社員名簿にインポートしますか？`)) return;
-
-        setIsImporting(true);
+        setIsImporting(true); setActionError(''); setNotice('');
         try {
             const parsedData = await parseCSV(file);
 
             // Auto-detect columns
             if (parsedData.length === 0) {
-                alert('データが見つかりません');
+                setActionError('データが見つかりません。');
                 return;
             }
 
@@ -106,7 +112,7 @@ export default function MasterDataPage() {
             });
 
             if (!idKey || !nameKey) {
-                alert('CSVに「ID」と「氏名」の列が必要です。');
+                setActionError('CSVに「会員ID」と「氏名」の列が必要です。');
                 return;
             }
 
@@ -114,18 +120,22 @@ export default function MasterDataPage() {
                 employee_id: row[idKey],
                 name: row[nameKey],
                 email: emailKey ? row[emailKey] : undefined
-            })).filter(r => r.employee_id && r.name);
+            }));
+            const checked = validateMasterRows(formattedData);
+            if ('error' in checked) { setActionError(checked.error); return; }
+            if (!confirm(`${file.name}（${formattedData.length}件）から新しい会員だけ追加します。登録済みの会員IDはスキップし、氏名・メールアドレスは上書きしません。追加しますか？`)) return;
 
             const result = await importMasterDataCSV(formattedData);
             if (result.success) {
-                alert(`${formattedData.length}件のデータを登録しました。`);
+                setNotice(`新規追加 ${result.inserted}件 ／ 登録済み・CSV内の重複でスキップ ${result.skipped}件。既存会員の情報は変更していません。`);
+                setCurrentPage(1);
                 setRefreshKey(k => k + 1);
             } else {
-                alert(result.error);
+                setActionError(result.error || '追加できませんでした。');
             }
         } catch (err) {
             const error = err as Error;
-            alert('CSV読み込みエラー: ' + error.message);
+            setActionError('CSV読み込みエラー: ' + error.message);
         } finally {
             setIsImporting(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -137,9 +147,9 @@ export default function MasterDataPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">社員名簿管理</h1>
+                    <h1 className="text-2xl font-bold text-foreground">会員名簿管理</h1>
                     <p className="text-foreground/70 text-sm">
-                        会社全体の社員リストを管理します。このリストは全てのイベントで共通利用されます。
+                        会員ID・氏名・メールアドレスを登録します。すべてのイベントで共通利用する名簿です。
                     </p>
                 </div>
 
@@ -154,27 +164,35 @@ export default function MasterDataPage() {
                     <Button
                         variant="secondary"
                         onClick={() => fileInputRef.current?.click()}
-                        disabled={isImporting}
+                        disabled={isImporting || isAdding}
                     >
                         {isImporting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
-                        CSVインポート
+                        CSVで新しい会員を追加
                     </Button>
                 </div>
             </div>
+
+            <div className="admin-panel space-y-2 text-sm">
+                <p>追加分だけのCSVでも、登録済み会員を含む全件CSVでも取り込めます。同じ会員IDはスキップし、既存の氏名・メールアドレスは上書きしません。</p>
+                <p>CSVの列：会員ID・氏名・メールアドレス。メールアドレスが空欄でも登録できますが、チケット配信には必要です。</p>
+                <a className="underline text-primary" download="会員名簿テンプレート.csv" href={'data:text/csv;charset=utf-8,' + encodeURIComponent('\uFEFF会員ID,氏名,メールアドレス\r\n')}>CSVテンプレートをダウンロード</a>
+            </div>
+            {notice && <p role="status" className="admin-panel text-green-800">{notice}</p>}
+            {actionError && <p role="alert" className="admin-panel text-red-700">{actionError}</p>}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Left: Add Form */}
                 <Card className="p-6 md:col-span-1 h-fit">
                     <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
                         <Plus className="w-5 h-5 text-primary" />
-                        個別登録
+                        新しい会員を追加
                     </h2>
                     <form id="add-form" action={handleAdd} className="space-y-4">
-                        <Input name="employee_id" label="社員ID (必須)" placeholder="EMP001" required />
+                        <Input name="employee_id" label="会員ID (必須)" placeholder="例：12345678" required />
                         <Input name="name" label="氏名 (必須)" placeholder="山田 太郎" required />
                         <Input name="email" label="メールアドレス" type="email" placeholder="yamada@example.com" />
-                        <Button type="submit" className="w-full">
-                            {loading ? <Loader2 className="animate-spin w-4 h-4" /> : "追加する"}
+                        <Button type="submit" className="w-full" disabled={isAdding || isImporting}>
+                            {isAdding ? <Loader2 className="animate-spin w-4 h-4" /> : "追加する"}
                         </Button>
                     </form>
                 </Card>
@@ -191,7 +209,7 @@ export default function MasterDataPage() {
                     <div className="p-6 border-b border-border bg-muted/20 flex justify-between items-center">
                         <h2 className="font-bold flex items-center gap-2">
                             <User className="w-5 h-5" />
-                            登録済み社員リスト ({data.length}名)
+                            登録済み会員リスト ({data.length}名)
                         </h2>
                     </div>
 
