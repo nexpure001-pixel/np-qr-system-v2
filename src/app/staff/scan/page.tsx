@@ -1,318 +1,153 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import jsQR from 'jsqr';
+import { useEffect, useRef, useState } from 'react';
 import { checkIn, staffLogout, getStaffSession } from '@/app/actions/staff';
-import { Button } from '@/components/ui/Button';
-import { Camera, LogOut, CheckCircle, AlertTriangle, Search, XCircle } from "lucide-react";
+import { Camera, LogOut, CheckCircle2, AlertCircle, Pause, ScanLine } from 'lucide-react';
+
+type Result = { ok: boolean; message: string; name?: string; ticketType?: string; startTime?: string; entryType?: 'first' | 're_entry' };
 
 export default function StaffScanPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [session, setSession] = useState<{ eventName: string, tenantName: string } | null>(null);
-  const [scanning, setScanning] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [result, setResult] = useState<{
-    type: 'success' | 'warning' | 'error',
-    message: string,
-    name?: string,
-    ticketType?: string,
-    startTime?: string,
-    entryType?: 'first' | 're_entry'
-  } | null>(null);
+  const busy = useRef(false);
+  const mounted = useRef(false);
+  const stopRef = useRef<() => void>(() => {});
+  const [session, setSession] = useState<{ eventName: string; tenantName: string } | null>(null);
+  const [active, setActive] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState('');
+  const [query, setQuery] = useState('');
+  const [result, setResult] = useState<Result | null>(null);
 
-  // Initialize Session
   useEffect(() => {
+    mounted.current = true;
     getStaffSession().then(s => {
+      if (!mounted.current) return;
       if (s) setSession(s);
-      else staffLogout(); // Redirect if no session
-    });
+      else void staffLogout();
+    }).catch(() => { if (mounted.current) setError('ログイン情報を確認できません。ページを再読み込みしてください。'); });
+    return () => { mounted.current = false; };
   }, []);
 
-  // Handle Scan Result
-  const handleScan = useCallback(async (data: string) => {
-    if (!scanning) return;
-    setScanning(false); // Pause scanning
-
-    // Call Server Action
-    const res = await checkIn(data);
-
-    if (res.success && res.participant) {
-      setResult({
-        type: 'success',
-        message: res.message || 'チェックイン完了',
-        name: res.participant.name,
-        ticketType: res.participant.ticketType,
-        startTime: res.participant.startTime,
-        entryType: res.participant.entryType
-      });
-    } else {
-      setResult({
-        type: 'error',
-        message: res.error || 'エラーが発生しました'
-      });
-    }
-  }, [scanning]);
-
-  // Use a local function for the loop to avoid const scoping issues in requestAnimationFrame
-  const tick = useCallback(() => {
-    if (!videoRef.current || !canvasRef.current || !scanning) return;
-
-    const loop = () => {
-      if (!videoRef.current || !canvasRef.current || !scanning) return;
-      if (videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
-        const video = videoRef.current;
-        const canvas = canvasRef.current;
-
-        canvas.height = video.videoHeight;
-        canvas.width = video.videoWidth;
-
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-          const code = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: "dontInvert",
-          });
-
-          if (code && code.data) {
-            handleScan(code.data);
-            return; // Stop loop
-          }
-        }
-      }
-      requestAnimationFrame(loop);
-    };
-    loop();
-  }, [scanning, handleScan]);
-
-  // Camera Logic
-  const startCamera = useCallback(async () => {
-    if (!videoRef.current) return;
+  async function submit(value: string) {
+    if (busy.current || !session || !value.trim()) return;
+    busy.current = true;
+    stopRef.current();
+    setActive(false);
+    setPending(true);
+    setError('');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" }
-      });
-      videoRef.current.srcObject = stream;
-      videoRef.current.setAttribute("playsinline", "true"); // required to tell iOS safari we don't want fullscreen
-      videoRef.current.play();
-      tick();
+      const res = await checkIn(value.trim());
+      if (!mounted.current) return;
+      setResult(res.success && res.participant
+        ? { ok: true, message: res.message || 'チェックイン完了', ...res.participant }
+        : { ok: false, message: res.error || '受付情報を確認できませんでした。' });
+      setQuery('');
     } catch {
-      setResult({ type: 'error', message: 'カメラの起動に失敗しました。権限を確認してください。' });
+      if (mounted.current) setResult({ ok: false, message: '通信が途切れました。受付済みか管理画面で確認してから再試行してください。' });
+    } finally {
+      if (mounted.current) setPending(false);
+      // Keep the lock until the operator explicitly dismisses the result.
     }
-  }, [tick]);
+  }
+  const submitRef = useRef(submit);
+  useEffect(() => { submitRef.current = submit; });
 
   useEffect(() => {
-    let isMounted = true;
-
-    const init = async () => {
-      if (isMounted) {
-        await startCamera();
+    if (!active || !session) return;
+    let cancelled = false;
+    let stream: MediaStream | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const video = videoRef.current;
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    function stop() {
+      cancelled = true;
+      clearTimeout(timer);
+      stream?.getTracks().forEach(track => track.stop());
+      if (video) { video.pause(); video.srcObject = null; }
+    }
+    stopRef.current = stop;
+    function hide() {
+      if (document.hidden) { stop(); setActive(false); setReady(false); }
+    }
+    function leave() { stop(); setActive(false); setReady(false); }
+    document.addEventListener('visibilitychange', hide);
+    window.addEventListener('pagehide', leave);
+    async function start() {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error('unsupported');
+        stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: {
+          facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15, max: 15 },
+        } });
+        if (cancelled || !video) { stream.getTracks().forEach(track => track.stop()); return; }
+        video.srcObject = stream;
+        await video.play();
+        const { default: jsQR } = await import('jsqr');
+        if (cancelled) return;
+        setReady(true);
+        function decode() {
+          if (cancelled || !video || !context) return;
+          try {
+            if (video.readyState >= 2 && video.videoWidth && video.videoHeight) {
+              const scale = Math.min(1, 640 / Math.max(video.videoWidth, video.videoHeight));
+              const width = Math.max(1, Math.round(video.videoWidth * scale));
+              const height = Math.max(1, Math.round(video.videoHeight * scale));
+              if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
+              context.drawImage(video, 0, 0, width, height);
+              const pixels = context.getImageData(0, 0, width, height);
+              const code = jsQR(pixels.data, width, height, { inversionAttempts: 'dontInvert' });
+              if (code?.data) { stop(); void submitRef.current(code.data); return; }
+            }
+            // Schedule after decoding: no overlapping work or accumulated frames.
+            timer = setTimeout(decode, 250);
+          } catch { stop(); setActive(false); setReady(false); setError('読み取りを停止しました。カメラを再開するか、IDで受付してください。'); }
+        }
+        decode();
+      } catch (e) {
+        if (cancelled) return;
+        stop();
+        if (!mounted.current) return;
+        setActive(false); setReady(false);
+        const name = e instanceof Error ? e.name : '';
+        setError(name === 'NotAllowedError' ? 'カメラの使用を許可してください。ID入力でも受付できます。' : 'カメラを起動できません。ほかのカメラアプリを閉じて再試行してください。ID入力も利用できます。');
       }
-    };
-    init();
+    }
+    void start();
+    return () => { stop(); document.removeEventListener('visibilitychange', hide); window.removeEventListener('pagehide', leave); };
+  }, [active, session]);
 
-    const currentVideo = videoRef.current;
-    return () => {
-      isMounted = false;
-      // Cleanup stream
-      if (currentVideo?.srcObject) {
-        const stream = currentVideo.srcObject as MediaStream;
-        stream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [startCamera]);
-
-  // Reset to Scan Mode
-  const resetScan = () => {
-    setResult(null);
-    setScanning(true);
-    // Use timeout to ensure state update is processed
-    setTimeout(() => {
-      tick();
-    }, 100);
-  };
+  function startCamera() { setError(''); setReady(false); setActive(true); }
+  function next() { busy.current = false; setResult(null); }
+  const button = 'min-h-12 rounded-xl px-5 py-3 font-bold focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-600 disabled:opacity-40';
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 flex flex-col relative overflow-hidden font-sans">
-      {/* Background Camera View (Lowered opacity) */}
-      <div className="absolute inset-0 z-0 bg-slate-100/50">
-        <video
-          ref={videoRef}
-          className="absolute inset-0 w-full h-full object-cover opacity-30 blur-[2px]"
-        />
-        <canvas ref={canvasRef} className="hidden" />
-      </div>
-
-      {/* Modern Overlay: Header */}
-      <div className="relative z-20 p-6 flex justify-between items-center border-b border-slate-100 bg-white/80 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-50 rounded-lg">
-            <Camera className="w-5 h-5 text-blue-600" />
-          </div>
-          <div>
-            <h1 className="text-lg font-black tracking-tight text-slate-800">
-              QRスキャン中
-            </h1>
-            {session && (
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                {session.eventName}
-              </p>
-            )}
-          </div>
+    <div className="min-h-dvh bg-[#f4f6f8] text-slate-900" style={{ fontFamily: 'system-ui, sans-serif', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <header className="border-b border-slate-200 bg-white px-4 py-4 sm:px-8">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3"><ScanLine className="h-8 w-8 shrink-0 text-teal-700" /><div className="min-w-0"><p className="text-xs font-bold tracking-widest text-teal-700">EVENT RECEPTION</p><h1 className="text-lg font-bold">入場受付</h1></div></div>
+          <form action={staffLogout}><button aria-label="ログアウト" className={`${button} flex items-center gap-2 border border-slate-200 bg-white text-sm`}><LogOut size={18} /><span className="hidden sm:inline">ログアウト</span></button></form>
         </div>
-        <form action={staffLogout}>
-          <button type="submit" className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-100 hover:text-slate-600 transition-all border border-slate-100">
-            <LogOut className="w-5 h-5" />
-          </button>
-        </form>
-      </div>
-
-      {/* Main Scanner Container */}
-      <div className="flex-1 relative z-10 flex flex-col items-center justify-center p-6 bg-gradient-to-b from-white/20 via-transparent to-white/20">
-
-        {/* The "Window" container */}
-        <div className="relative w-full max-w-[320px] aspect-square flex items-center justify-center">
-
-          {/* Real clear camera view in the window */}
-          <div className="absolute inset-0 rounded-[2.5rem] overflow-hidden border-8 border-white shadow-2xl ring-1 ring-slate-100">
-            <video
-              ref={(v) => {
-                if (v && videoRef.current && v !== videoRef.current) {
-                  // We show the same stream in the small window
-                  v.srcObject = videoRef.current.srcObject;
-                  v.play();
-                }
-              }}
-              className="w-full h-full object-cover scale-110"
-              muted
-              playsInline
-            />
-          </div>
-
-          {/* Guidelines Corner Brackets */}
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-0 left-0 w-12 h-12 border-t-4 border-l-4 border-blue-600 rounded-tl-3xl -mt-1 -ml-1"></div>
-            <div className="absolute top-0 right-0 w-12 h-12 border-t-4 border-r-4 border-blue-600 rounded-tr-3xl -mt-1 -mr-1"></div>
-            <div className="absolute bottom-0 left-0 w-12 h-12 border-b-4 border-l-4 border-blue-600 rounded-bl-3xl -mb-1 -ml-1"></div>
-            <div className="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-blue-600 rounded-br-3xl -mb-1 -mr-1"></div>
-          </div>
-
-          {/* Scanning Animation Line */}
-          {scanning && !result && (
-            <div className="absolute top-0 left-4 right-4 h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent shadow-[0_0_15px_rgba(59,130,246,0.8)] animate-scan-line z-30 opacity-80" />
-          )}
-        </div>
-
-        <div className="mt-10 text-center space-y-2">
-          <p className="text-slate-800 font-black text-lg">
-            {scanning ? "QRコードをかざしてください" : "処理中..."}
-          </p>
-          <p className="text-slate-400 text-xs font-bold tracking-wider">
-            枠内にQRコードが入るように調整してください
-          </p>
-        </div>
-
-        {/* Manual Search UI */}
-        <div className="mt-8 w-full max-w-[320px]">
-          <div className="relative group">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="会員IDを手動入力..."
-              className="w-full px-5 py-3.5 bg-white border-2 border-slate-200 rounded-2xl text-sm font-black text-slate-900 focus:outline-none focus:border-blue-600 transition-all placeholder:text-slate-400 pr-12 shadow-sm"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && searchQuery) {
-                  handleScan(searchQuery);
-                  setSearchQuery("");
-                }
-              }}
-            />
-            <button
-              onClick={() => {
-                if (searchQuery) {
-                  handleScan(searchQuery);
-                  setSearchQuery("");
-                }
-              }}
-              disabled={!searchQuery}
-              className="absolute right-2 top-2 p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:bg-slate-200 transition-all shadow-md shadow-blue-200"
-            >
-              <Search className="w-4 h-4" />
-            </button>
-          </div>
-          <p className="text-[10px] text-slate-500 font-black text-center mt-3 uppercase tracking-tighter">
-            会員IDによる手動チェックインが可能です
-          </p>
-        </div>
-      </div>
-
-      {/* Result Modal - Integrated for modern look */}
-      {result && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className={`w-full max-w-sm bg-white rounded-xl shadow-2xl overflow-hidden animate-in zoom-in duration-200 ${result.type === 'success' ? 'border-4 border-green-500' : result.type === 'warning' ? 'border-4 border-yellow-500' : 'border-4 border-red-500'}`}>
-
-            {/* Status Banner */}
-            <div className={`p-6 text-center ${result.type === 'success' ? 'bg-green-50' : result.type === 'warning' ? 'bg-yellow-50' : 'bg-red-50'}`}>
-              {result.type === 'success' && <CheckCircle className="w-16 h-16 mx-auto text-green-500 mb-2" />}
-              {result.type === 'warning' && <AlertTriangle className="w-16 h-16 mx-auto text-yellow-500 mb-2" />}
-              {result.type === 'error' && <XCircle className="w-16 h-16 mx-auto text-red-500 mb-2" />}
-
-              <h2 className={`text-2xl font-bold ${result.type === 'success' ? 'text-green-700' : result.type === 'warning' ? 'text-yellow-700' : 'text-red-700'}`}>
-                {result.type === 'success' ? '確認OK' : result.type === 'warning' ? '注意' : 'エラー'}
-              </h2>
+      </header>
+      <main className="mx-auto max-w-5xl px-4 py-6 sm:p-8">
+        <div className="mb-6"><p className="text-sm text-slate-500">{session?.tenantName || '受付スタッフ'}</p><h2 className="mt-1 break-words text-xl font-bold sm:text-2xl">{session?.eventName || 'イベント情報を確認中…'}</h2></div>
+        <div className="grid items-start gap-5 md:grid-cols-[1.2fr_1fr]">
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white" aria-label="QRコード読み取り">
+            <div className="flex items-center justify-between gap-3 px-5 py-4"><h3 className="font-bold">QRコードで受付</h3><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold" role="status">{pending ? '受付処理中' : active ? ready ? '読み取り中' : '起動中' : 'カメラ停止中'}</span></div>
+            <div className="relative aspect-[4/3] bg-[#152c30]">
+              <video ref={videoRef} muted playsInline className={`absolute inset-0 h-full w-full object-contain ${active && ready ? '' : 'invisible'}`} />
+              {active && ready ? <div className="pointer-events-none absolute inset-[12%] rounded-2xl border-2 border-white/70" /> : <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center text-white"><Camera size={40} strokeWidth={1.3} /><p className="font-semibold">{pending ? '受付情報を確認しています' : result ? '受付結果をご確認ください' : active ? 'カメラを準備しています' : '準備ができたらカメラを開始'}</p><p className="text-sm text-slate-300">{active ? 'カメラの使用を許可してください' : '使わない間はカメラを休止します'}</p></div>}
             </div>
-
-            {/* Content */}
-            <div className="p-6 text-center">
-              {result.entryType && (
-                <div className="mb-4">
-                  <span className={`px-4 py-1.5 rounded-full text-sm font-black tracking-widest ${result.entryType === 'first'
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
-                    : 'bg-orange-500 text-white shadow-lg shadow-orange-200'
-                    }`}>
-                    {result.entryType === 'first' ? '✨ 初入場' : '🔄 途中入場'}
-                  </span>
-                </div>
-              )}
-
-              {result.name && (
-                <div className="mb-4">
-                  <p className="text-3xl font-black text-slate-800 mt-1">{result.name} 様</p>
-                </div>
-              )}
-
-              {(result.ticketType || result.startTime) && (
-                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-6 text-center space-y-2">
-                  {result.ticketType && (
-                    <div className="flex flex-col items-center">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">券種</span>
-                      <span className="text-lg font-black text-slate-900 leading-tight">{result.ticketType}</span>
-                    </div>
-                  )}
-                  {result.startTime && (
-                    <div className="flex flex-col items-center pt-2 border-t border-slate-100">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">入場可能時間</span>
-                      <span className="text-lg font-black text-slate-900 leading-tight">{result.startTime}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <p className="text-gray-600 font-bold">{result.message}</p>
-            </div>
-
-            {/* Footer Button */}
-            <div className="p-4 bg-gray-50 border-t border-gray-100">
-              <Button onClick={resetScan} className="w-full h-12 text-lg">
-                次の人をスキャン
-              </Button>
-            </div>
+            <div className="space-y-3 p-5"><p className="text-sm text-slate-600">QRコード全体が映るようにかざしてください。</p><button disabled={!session || pending || !!result} onClick={active ? () => { stopRef.current(); setActive(false); setReady(false); } : startCamera} className={`${button} flex w-full items-center justify-center gap-2 ${active ? 'bg-slate-100' : 'bg-teal-700 text-white'}`}>{active ? <Pause size={18} /> : <Camera size={18} />}{active ? 'カメラを休止' : 'カメラを開始'}</button></div>
+          </section>
+          <div className="space-y-5">
+            {result && <section role="status" aria-live="polite" className={`rounded-2xl border-2 bg-white p-5 sm:p-6 ${result.ok ? 'border-teal-600' : 'border-amber-500'}`}><div className={`mb-4 flex items-center gap-3 ${result.ok ? 'text-teal-700' : 'text-amber-800'}`}>{result.ok ? <CheckCircle2 size={28} /> : <AlertCircle size={28} />}<h3 className="text-xl font-bold">{result.ok ? result.entryType === 're_entry' ? '再入場を受け付けました' : '入場を受け付けました' : '確認が必要です'}</h3></div>{result.name && <p className="mb-5 break-words text-2xl font-bold">{result.name}<span className="ml-2 text-sm font-normal">様</span></p>}<dl className="space-y-3">{result.ticketType && <div><dt className="text-xs text-slate-500">券種</dt><dd className="break-words font-bold">{result.ticketType}</dd></div>}{result.startTime && <div><dt className="text-xs text-slate-500">入場可能時間</dt><dd className="font-bold">{result.startTime}</dd></div>}</dl><p className="my-4 text-sm text-slate-600">{result.message}</p><button autoFocus onClick={next} className={`${button} w-full bg-teal-700 text-white`}>次の受付へ</button></section>}
+            {error && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{error}</p>}
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6"><h3 className="font-bold">IDを入力して受付</h3><p className="mb-5 mt-2 text-sm leading-relaxed text-slate-500">QRコードが読み取れない場合はこちら。</p><form onSubmit={e => { e.preventDefault(); void submit(query); }} className="space-y-3"><label htmlFor="member-id" className="block text-sm font-semibold">会員ID・会社コード</label><input id="member-id" value={query} onChange={e => setQuery(e.target.value)} autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="off" disabled={pending || !!result} className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base focus:outline-teal-600" placeholder="IDを入力" /><button disabled={!session || !query.trim() || pending || !!result} className={`${button} w-full border border-slate-300 bg-slate-50`}>{pending ? '確認しています…' : 'このIDで受付する'}</button></form></section>
+            <p className="px-1 text-xs leading-relaxed text-slate-500">受付結果の表示中・画面を離れたときはカメラが停止します。続けるときは「カメラを開始」を押してください。</p>
           </div>
         </div>
-      )}
+      </main>
     </div>
   );
 }
