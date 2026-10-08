@@ -1,5 +1,6 @@
 'use server';
 
+import { validateMasterRows } from "@/utils/masterData";
 import { createClient } from "@/utils/supabase/server";
 
 interface MasterDataRecord {
@@ -80,79 +81,34 @@ export async function addMasterDataRecord(formData: FormData) {
         return { success: false, error: 'テナントが見つかりません。', detail: tErr?.message };
     }
 
-    const employeeId = formData.get('employee_id') as string;
-    const name = formData.get('name') as string;
-    const email = formData.get('email') as string;
-
-    if (!employeeId || !name) {
-        return { success: false, error: 'IDと名前は必須です。' };
-    }
-
-    // Use Upsert to handle duplicates gracefully
-    const { error } = await supabase.from('master_data').upsert({
-        tenant_id: tenant.id,
-        employee_id: employeeId,
-        name: name,
-        email: email || null
-    }, { onConflict: 'tenant_id, employee_id' });
-
-    if (error) {
-        console.error('Add Record Error:', error);
-        return { success: false, error: '保存に失敗しました。', detail: error.message, code: error.code };
-    }
-
+    const checked = validateMasterRows([{
+        employee_id: formData.get('employee_id'), name: formData.get('name'), email: formData.get('email')
+    }]);
+    if ('error' in checked) return { success: false, error: checked.error };
+    const { error } = await supabase.from('master_data').insert({ tenant_id: tenant.id, ...checked.rows[0] });
+    if (error) return { success: false, error: error.code === '23505'
+        ? 'この会員IDは登録済みです。既存の氏名・メールアドレスは変更していません。'
+        : '追加できませんでした。時間をおいて再度お試しください。' };
     return { success: true };
 }
 
-// Bulk Import to company master
+// Existing members are preserved. The database unique constraint also handles
+// concurrent imports and members beyond PostgREST's default 1,000-row read limit.
 export async function importMasterDataCSV(rows: { employee_id: string, name: string, email?: string }[]) {
     const supabase = await createClient();
-
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-        console.log('importMasterDataCSV: No user found');
-        return { success: false, error: 'ログインしてください。' };
-    }
-
+    if (!user) return { success: false, error: 'ログインしてください。' };
     const { data: tenant, error: tenantError } = await supabase.from('tenants').select('id').eq('owner_id', user.id).single();
-
-    if (tenantError || !tenant) {
-        console.error('importMasterDataCSV: Tenant lookup failed', tenantError);
-        return { success: false, error: 'テナントが見つかりません。', detail: tenantError?.message };
-    }
-
-    // Prepare data with tenant_id
-    const payload = rows.map(r => ({
-        tenant_id: tenant.id,
-        employee_id: r.employee_id,
-        name: r.name,
-        email: r.email || null
-    }));
-
-    // Get existing employee IDs to filter out duplicates
-    const { data: existingRecords } = await supabase
-        .from('master_data')
-        .select('employee_id')
-        .eq('tenant_id', tenant.id);
-
-    const existingIds = new Set(existingRecords?.map(r => r.employee_id) || []);
-
-    // Filter out existing records - only insert new ones
-    const newRecords = payload.filter(r => !existingIds.has(r.employee_id));
-
-    if (newRecords.length === 0) {
-        return { success: true, message: '新規データがありません。すべて登録済みです。', inserted: 0 };
-    }
-
-    // Insert only new records
-    const { error } = await supabase.from('master_data').insert(newRecords);
-
-    if (error) {
-        console.error('Import Error:', error);
-        return { success: false, error: `インポートエラー: ${error.message} (Code: ${error.code})` };
-    }
-
-    return { success: true, inserted: newRecords.length, skipped: payload.length - newRecords.length };
+    if (tenantError || !tenant) return { success: false, error: '主催者情報を取得できませんでした。' };
+    const checked = validateMasterRows(rows);
+    if ('error' in checked) return { success: false, error: checked.error };
+    const { error, count } = await supabase.from('master_data').upsert(
+        checked.rows.map(row => ({ tenant_id: tenant.id, ...row })),
+        { onConflict: 'tenant_id,employee_id', ignoreDuplicates: true, count: 'exact' }
+    );
+    if (error) return { success: false, error: 'CSVの追加に失敗しました。会員IDとデータを確認してください。' };
+    if (count === null) return { success: false, error: '追加件数を確認できませんでした。名簿を再読み込みして確認してください。' };
+    return { success: true, inserted: count, skipped: rows.length - count };
 }
 
 // Delete master data record
