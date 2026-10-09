@@ -5,7 +5,7 @@ import { Camera, CheckCircle2, AlertCircle, Pause, SwitchCamera } from 'lucide-r
 import { checkIn } from '@/app/actions/staff';
 import { createScanGate, ticketToken } from '@/lib/staff/scan-gate';
 
-type Outcome = { ok: boolean; title: string; detail: string };
+type Outcome = { ok: boolean; title: string; detail: string; name?: string; ticketType?: string };
 
 export default function SelfReception({ eventId, eventName, onExit }: {
   eventId: string; eventName: string; onExit: () => void;
@@ -69,7 +69,9 @@ export default function SelfReception({ eventId, eventName, onExit }: {
         if (!alive.current) return;
         setOutcome(response?.success ? {
           ok: true,
-          title: response.participant?.entryType === 're_entry' ? '再入場を受け付けました' : '入場を受け付けました',
+          title: response.participant?.entryType === 're_entry' ? '受付完了（再入場）' : '受付完了',
+          name: response.participant?.name,
+          ticketType: response.participant?.ticketType,
           detail: 'QRコードを離して、そのままお進みください。',
         } : {
           ok: false,
@@ -156,13 +158,22 @@ export default function SelfReception({ eventId, eventName, onExit }: {
         <video ref={videoRef} muted playsInline className={`absolute inset-0 h-full w-full object-contain ${ready && active ? '' : 'invisible'}`} />
         {ready && active && !pending && !outcome && <div className="pointer-events-none absolute inset-[12%] rounded-2xl border-2 border-white/80" />}
         {(!ready || !active) && !pending && !outcome && <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center text-white"><Camera size={48} /><p className="text-xl font-bold">{active ? 'カメラを準備しています' : '受付は一時停止中です'}</p><p>スタッフが受付を開始します。</p></div>}
-        {(pending || outcome) && <div role="status" aria-live="polite" className={`absolute inset-0 flex flex-col items-center justify-center gap-5 p-6 text-center ${pending ? 'bg-white text-slate-900' : outcome?.ok ? 'bg-teal-50 text-teal-900' : 'bg-amber-50 text-amber-900'}`}>
-          {!pending && (outcome?.ok ? <CheckCircle2 size={64} /> : <AlertCircle size={64} />)}
-          <h3 className="text-2xl font-bold sm:text-4xl">{pending ? '受付を確認しています' : outcome?.title}</h3>
-          <p className="text-base sm:text-xl">{pending ? 'そのまま少々お待ちください。' : outcome?.detail}</p>
-          {!pending && <p className="text-sm">自動で次の受付に戻ります</p>}
+        {pending && <div role="status" aria-live="polite" className="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-white p-6 text-center text-slate-900">
+          <h3 className="text-2xl font-bold sm:text-4xl">受付を確認しています</h3>
+          <p className="text-base sm:text-xl">そのまま少々お待ちください。</p>
         </div>}
       </section>
+      {outcome && !pending && <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4" style={{ paddingTop: 'max(16px, env(safe-area-inset-top))', paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
+        <section role="status" aria-live="polite" aria-atomic="true" className={`my-auto max-h-full w-full max-w-lg overflow-y-auto rounded-3xl border-t-8 bg-white p-6 text-center shadow-2xl sm:p-10 ${outcome.ok ? 'border-teal-500' : 'border-amber-500'}`}>
+          {outcome.ok ? <CheckCircle2 aria-hidden="true" className="mx-auto mb-4 text-teal-600" size={56} /> : <AlertCircle aria-hidden="true" className="mx-auto mb-4 text-amber-600" size={56} />}
+          <h3 className={`text-2xl font-bold sm:text-3xl ${outcome.ok ? 'text-teal-800' : 'text-amber-900'}`}>{outcome.title}</h3>
+          {outcome.ok ? <div className="my-7 space-y-5">
+            <p className={`inline-block max-w-full break-words rounded-full px-5 py-2 text-lg font-bold sm:text-xl ${outcome.ticketType === 'Premium Pass' ? 'bg-orange-50 text-orange-800' : outcome.ticketType === 'Invitation Pass' ? 'bg-violet-50 text-violet-800' : 'bg-slate-100 text-slate-800'}`}>{outcome.ticketType || '券種未設定'}</p>
+            <p className="break-words text-3xl font-bold leading-relaxed text-slate-900 sm:text-4xl">{outcome.name || '氏名未登録'}<span className="ml-2 inline-block text-lg font-normal">様</span></p>
+          </div> : <p className="my-6 text-base text-slate-700">{outcome.detail}</p>}
+          <p className="text-sm text-slate-500">QRコードを離してください。自動で次の受付に戻ります。</p>
+        </section>
+      </div>}
       {error && <p role="alert" className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900">{error}</p>}
       <div className="mt-5 flex flex-wrap justify-center gap-3">
         <button className={`${button} ${active ? 'bg-white' : 'bg-teal-700 text-white'}`} disabled={pending || !!outcome} onClick={() => {
