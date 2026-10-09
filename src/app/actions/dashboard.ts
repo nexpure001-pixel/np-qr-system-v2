@@ -1,13 +1,11 @@
 'use server';
 
 import { createClient } from "@/utils/supabase/server";
+import { getAdminReadSession } from "@/lib/admin/read-session";
 
 // Get all events for the current tenant
 export async function getEvents() {
-    const supabase = await createClient();
-
-    // 1. Get User
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await getAdminReadSession();
     if (!user) return [];
 
     // 2. Get Tenant
@@ -22,7 +20,7 @@ export async function getEvents() {
     // 3. Get Events
     const { data: events } = await supabase
         .from('events')
-        .select('id, name, event_code, created_at')
+        .select('id, name, event_code, created_at, email_template')
         .eq('tenant_id', tenant.id)
         .order('created_at', { ascending: false });
 
@@ -31,10 +29,7 @@ export async function getEvents() {
 
 // Get statistics for a specific event
 export async function getEventStats(eventId: string) {
-    const supabase = await createClient();
-
-    // 1. Get User
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await getAdminReadSession();
     if (!user) return null;
 
     // 2. Verify event belongs to user's tenant
@@ -79,9 +74,7 @@ export async function getEventStats(eventId: string) {
 
 // Get tenant info (for company code display)
 export async function getTenantInfo() {
-    const supabase = await createClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await getAdminReadSession();
     if (!user) return null;
 
     const { data: tenant } = await supabase
@@ -95,10 +88,7 @@ export async function getTenantInfo() {
 
 // Get participants for a specific event with master data match info
 export async function getEventParticipants(eventId: string) {
-    const supabase = await createClient();
-
-    // 1. Get User
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await getAdminReadSession();
     if (!user) return [];
 
     // 2. Verify event belongs to user's tenant

@@ -1,9 +1,8 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Loader2, CheckCircle, Users, Trash2 } from "lucide-react";
-interface EventRecord { id: string; email_template?: string; }
 interface ParticipantRecord {
     id: string;
     name: string;
@@ -15,11 +14,11 @@ interface ParticipantRecord {
     master_data_id?: string;
 }
 
-export default function ParticipantList({ eventId, mode }: { eventId: string; mode: string }) {
-    const [participants, setParticipants] = useState<ParticipantRecord[]>([]);
-    const [loading, setLoading] = useState(true);
+export default function ParticipantList({ eventId, mode, initialParticipants, initialTemplate }: { eventId: string; mode: string; initialParticipants: ParticipantRecord[]; initialTemplate: string }) {
+    const [participants, setParticipants] = useState<ParticipantRecord[]>(initialParticipants);
+    const [loading, setLoading] = useState(false);
     const [sending, setSending] = useState(false);
-    const [emailTemplate, setEmailTemplate] = useState('');
+    const [emailTemplate, setEmailTemplate] = useState(initialTemplate);
     const [savingTemplate, setSavingTemplate] = useState(false);
 
     const loadParticipants = useCallback(() => {
@@ -30,23 +29,10 @@ export default function ParticipantList({ eventId, mode }: { eventId: string; mo
             getEventParticipants(eventId).then(data => {
                 setParticipants(data);
                 setLoading(false);
-            });
-        });
+            }).catch(() => { alert('参加者を取得できませんでした。再読み込みしてください。'); }).finally(() => setLoading(false));
+        }).catch(() => setLoading(false));
 
-        // Load current template
-        import('@/app/actions/settings').then(({ getEvents }) => {
-            getEvents().then(events => {
-                const currentEvent = (events as EventRecord[]).find(e => e.id === eventId);
-                if (currentEvent) {
-                    setEmailTemplate(currentEvent.email_template || '');
-                }
-            });
-        });
     }, [eventId]);
-
-    useEffect(() => {
-        loadParticipants();
-    }, [loadParticipants]);
 
     const handleSaveTemplate = async () => {
         setSavingTemplate(true);
