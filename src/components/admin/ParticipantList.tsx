@@ -1,8 +1,8 @@
 "use client";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Loader2, CheckCircle, Users, Trash2 } from "lucide-react";
+import { Loader2, CheckCircle, Users, Trash2, RefreshCw } from "lucide-react";
 interface ParticipantRecord {
     id: string;
     name: string;
@@ -17,21 +17,31 @@ interface ParticipantRecord {
 export default function ParticipantList({ eventId, mode, initialParticipants, initialTemplate }: { eventId: string; mode: string; initialParticipants: ParticipantRecord[]; initialTemplate: string }) {
     const [participants, setParticipants] = useState<ParticipantRecord[]>(initialParticipants);
     const [loading, setLoading] = useState(false);
+    const refreshInFlight = useRef(false);
+    const [refreshError, setRefreshError] = useState('');
+    const [refreshMessage, setRefreshMessage] = useState('');
     const [sending, setSending] = useState(false);
     const [emailTemplate, setEmailTemplate] = useState(initialTemplate);
     const [savingTemplate, setSavingTemplate] = useState(false);
 
-    const loadParticipants = useCallback(() => {
-        if (!eventId) return;
+    const loadParticipants = useCallback(async () => {
+        if (!eventId || refreshInFlight.current) return;
 
+        refreshInFlight.current = true;
         setLoading(true);
-        import('@/app/actions/dashboard').then(({ getEventParticipants }) => {
-            getEventParticipants(eventId).then(data => {
-                setParticipants(data);
-                setLoading(false);
-            }).catch(() => { alert('参加者を取得できませんでした。再読み込みしてください。'); }).finally(() => setLoading(false));
-        }).catch(() => setLoading(false));
-
+        setRefreshError('');
+        setRefreshMessage('');
+        try {
+            const { getEventParticipants } = await import('@/app/actions/dashboard');
+            const data = await getEventParticipants(eventId);
+            setParticipants(data);
+            setRefreshMessage('参加者リストを更新しました。');
+        } catch {
+            setRefreshError('更新できませんでした。もう一度「更新」を押してください。');
+        } finally {
+            refreshInFlight.current = false;
+            setLoading(false);
+        }
     }, [eventId]);
 
     const handleSaveTemplate = async () => {
@@ -95,23 +105,6 @@ export default function ParticipantList({ eventId, mode, initialParticipants, in
         }
     };
 
-    if (loading) {
-        return (
-            <Card className="p-6">
-                <p className="text-center text-foreground/60">読み込み中...</p>
-            </Card>
-        );
-    }
-
-    if (participants.length === 0) {
-        return (
-            <Card className="p-6">
-                <h3 className="font-bold text-lg mb-4">参加者リスト</h3>
-                <p className="text-center text-foreground/60">まだ参加者がいません</p>
-            </Card>
-        );
-    }
-
     const unsentCount = participants.filter(p => !p.email_sent).length;
 
     return (
@@ -139,7 +132,7 @@ export default function ParticipantList({ eventId, mode, initialParticipants, in
                     </Button>
                     <Button
                         onClick={handleBulkEmailSend}
-                        disabled={sending || unsentCount === 0}
+                        disabled={sending || loading || unsentCount === 0}
                         className="bg-primary hover:bg-primary/90 h-10 font-bold whitespace-nowrap"
                     >
                         {sending ? (
@@ -157,10 +150,26 @@ export default function ParticipantList({ eventId, mode, initialParticipants, in
             </div>
 
             }
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-wrap items-center gap-3 mb-4">
                 <h3 className="font-bold text-lg">参加者リスト ({participants.length}名)</h3>
+                <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="min-h-11"
+                    onClick={loadParticipants}
+                    disabled={loading || sending}
+                    aria-label="参加者リストを更新"
+                    aria-controls="participant-list-content"
+                >
+                    <RefreshCw aria-hidden="true" className={`w-4 h-4 mr-2 ${loading ? 'animate-spin motion-reduce:animate-none' : ''}`} />
+                    {loading ? '更新中…' : '更新'}
+                </Button>
             </div>
-            <div className="overflow-x-auto">
+            <p role="status" className="sr-only">{loading ? '参加者リストを更新中です。' : refreshMessage}</p>
+            {refreshError && <p role="alert" className="mb-4 text-sm text-red-600">{refreshError}</p>}
+            <div id="participant-list-content" aria-busy={loading} className="overflow-x-auto">
+                {participants.length === 0 ? <p className="py-4 text-center text-foreground/60">まだ参加者がいません</p> : (
                 <table className="admin-participant-table w-full text-sm">
                     <thead className="bg-muted/50 text-xs uppercase">
                         <tr>
@@ -221,6 +230,7 @@ export default function ParticipantList({ eventId, mode, initialParticipants, in
                         ))}
                     </tbody>
                 </table>
+                )}
             </div>
         </Card>
     );
