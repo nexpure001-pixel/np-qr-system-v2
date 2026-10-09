@@ -17,6 +17,8 @@ import {
   ScanLine,
 } from "lucide-react";
 
+import SelfReception from "@/components/staff/SelfReception";
+
 type Result = {
   ok: boolean;
   message: string;
@@ -33,6 +35,7 @@ export default function StaffScanPage() {
   const sessionVersion = useRef(0);
   const currentEvent = useRef<string | null>(null);
   const stopRef = useRef<() => void>(() => {});
+  const [selfService, setSelfService] = useState(false);
   const [session, setSession] = useState<StaffSession | null>(null);
   const [choosing, setChoosing] = useState(false);
   const [selected, setSelected] = useState("");
@@ -56,6 +59,7 @@ export default function StaffScanPage() {
         const current = await getStaffSession();
         if (!mounted.current || version !== sessionVersion.current) return;
         if (currentEvent.current !== current?.eventId) {
+          setSelfService(false);
           stopRef.current();
           setActive(false);
           setReady(false);
@@ -72,6 +76,7 @@ export default function StaffScanPage() {
         }
       } catch {
         if (mounted.current && version === sessionVersion.current) {
+          setSelfService(false);
           stopRef.current();
           setActive(false);
           setReady(false);
@@ -293,6 +298,10 @@ export default function StaffScanPage() {
   const button =
     "min-h-12 rounded-xl px-5 py-3 font-bold focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-600 disabled:opacity-40";
 
+  if (selfService && session?.eventId) {
+    return <SelfReception key={session.eventId} eventId={session.eventId} eventName={session.eventName || "入場受付"} onExit={() => setSelfService(false)} />;
+  }
+
   return (
     <div
       className="min-h-dvh bg-[#f4f6f8] text-slate-900"
@@ -362,6 +371,21 @@ export default function StaffScanPage() {
                 イベントを切り替え
               </button>
             </div>
+            {eventId && !choosing && <div className="mt-4 border-t pt-4">
+              <button
+                className={`${button} w-full bg-teal-50 text-teal-800 sm:w-auto`}
+                disabled={pending || !!result || switching}
+                onClick={() => {
+                  stopRef.current();
+                  setActive(false);
+                  setReady(false);
+                  setSelfService(true);
+                }}
+              >
+                置き型のセルフ受付に切り替える
+              </button>
+              <p className="mt-2 text-sm text-slate-500">このスマホを設置し、参加者ご自身がQRコードをかざして受付できます。</p>
+            </div>}
             {session.events.some(
               (e) => e.recommended && e.id !== session.eventId,
             ) && (
